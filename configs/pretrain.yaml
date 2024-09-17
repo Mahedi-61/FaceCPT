@@ -1,0 +1,18 @@
+ann_root: './datasets/flip/annotation/'
+image_root: './datasets/flip/images/' 
+
+vit: 'arcface'
+image_size: 112
+batch_size: 96 #should be divided by 61440
+
+queue_size:  61440 #57600
+alpha: 0.4
+
+# optimizer
+weight_decay: 0.05
+init_lr: 4e-5 #3e-4 (blip), 3e-5 (flip)
+min_lr: 1e-6
+warmup_lr: 1e-6
+lr_decay_rate: 0.9
+max_epoch: 2 #20
+warmup_steps: 6000 #20,000 (flip)

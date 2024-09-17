@@ -1,0 +1,22 @@
+image_root: 'datasets/face2text/images/'
+ann_root: 'datasets/face2text/annotation'
+dataset: 'face2text'
+
+# set pretrained as a file path or an url
+pretrained: 'output/pretrain/cp_pretrain_flip_00.pth' #'checkpoint/retrieval/cp_retrieval_celeba.pth' #'weights/facecpt_pretrain.pth'
+
+vit: 'arcface'
+batch_size_train: 32
+batch_size_test: 64
+init_lr: 7e-5 #1e-5
+
+image_size: 112
+queue_size: 61440 #57600
+alpha: 0.4
+k_test: 128
+negative_all_rank: True
+
+# optimizer
+weight_decay: 0.05
+min_lr: 0
+max_epoch: 2 #6

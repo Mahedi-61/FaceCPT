@@ -1,0 +1,17 @@
+image_root: 'datasets/lfw/images/'
+ann_root: 'datasets/lfw/annotation'
+dataset: 'lfw'
+
+# set pretrained as a file path or an url
+pretrained: 'checkpoint/retrieval/cp_retrieval_celeba.pth' #'weights/facecpt_pretrain.pth' #'weights/model_base_retrieval_coco.pth'
+
+vit: 'arcface'
+batch_size_train: 32
+batch_size_test: 64
+init_lr: 7e-5 #1e-5
+negative_all_rank: True
+
+image_size: 112
+queue_size: 61440 #57600
+alpha: 0.4
+k_test: 256

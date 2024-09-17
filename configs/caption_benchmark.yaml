@@ -1,0 +1,16 @@
+image_root: ''
+ann_root: '' 
+
+# set pretrained as a file path or an url
+pretrained: 'checkpoint/caption/cp_caption_celeba.pth' #model_base_caption_capfilt_large.pth
+
+# size of vit model; base or large
+vit: 'arcface'
+batch_size: 32
+
+# generation configs
+image_size: 112
+max_length: 40  
+min_length: 18
+num_beams: 3
+prompt: 'a photo of a person where '

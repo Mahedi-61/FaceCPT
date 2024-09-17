@@ -1,0 +1,23 @@
+image_root: 'datasets/celeba_dialog/images/'
+ann_root: 'datasets/celeba_dialog/annotation'
+dataset: 'celeba_dialog'
+
+# set pretrained as a file path or an url
+pretrained: 'weights/facecpt_pretrain.pth' #model_base_caption_capfilt_large.pth
+
+# size of vit model; base or large
+vit: 'arcface'
+batch_size: 32
+init_lr: 6e-5 #1e-5
+
+# generation configs
+image_size: 112
+max_length: 50 
+min_length: 15
+num_beams: 3
+prompt: 'a photo of a person where '
+
+# optimizer
+weight_decay: 0.05
+min_lr: 0
+max_epoch: 5

@@ -1,0 +1,22 @@
+image_root: 'datasets/celeba/images/'
+ann_root: 'datasets/celeba/annotation'
+dataset: 'celeba'
+
+# set pretrained as a file path or an url
+pretrained: 'checkpoint/retrieval/cp_retrieval_celeba.pth' #'weights/facecpt_pretrain.pth' #'weights/model_base_retrieval_coco.pth'
+
+vit: 'arcface'
+batch_size_train: 32
+batch_size_test: 64
+init_lr: 7e-5 #1e-5
+
+image_size: 112
+queue_size: 61440 #57600
+alpha: 0.4
+k_test: 256
+negative_all_rank: True
+
+# optimizer
+weight_decay: 0.05
+min_lr: 0
+max_epoch: 2 #6
