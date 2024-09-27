@@ -10,11 +10,7 @@ from data.benchmark_dataset import benchmark_caption_eval, benchmark_retrieval_e
 from data.flip_dataset import flip_pretrain
 from data.randaugment import RandomAugment
 
-"""
-RandomAugment(2, 5, isPIL=True, 
-                augs=['Identity', 'Brightness','Sharpness','Equalize',
-                    'ShearX', 'ShearY', 'TranslateX', 'TranslateY', 'Rotate']),    
-""" 
+ 
 
 def create_dataset(dataset, config, min_scale=0.5):
     normalize = transforms.Normalize((0.48145466, 0.4578275, 0.40821073), 
@@ -22,6 +18,9 @@ def create_dataset(dataset, config, min_scale=0.5):
 
     transform_train = transforms.Compose([                        
             transforms.RandomHorizontalFlip(),
+            RandomAugment(2, 5, isPIL=True, 
+                augs=['Identity', 'Brightness','Sharpness','Equalize',
+                    'ShearX', 'ShearY', 'TranslateX', 'TranslateY', 'Rotate']),   
             transforms.ToTensor(),
             normalize,
         ])        

@@ -1,20 +1,22 @@
-from models.med import BertConfig, BertModel
+from models.decoder import BertConfig
+from transformers import BertTokenizer
+from models.xbert import BertForMaskedLM
 from transformers import BertTokenizer
 
 import torch
 from torch import nn
 import torch.nn.functional as F
 
-from models.facecpt import init_tokenizer, load_checkpoint
+from models.facecpt import load_checkpoint
 from models.iresnet import iresnet50, iresnet100
 
-class BLIP_Retrieval(nn.Module):
+class Retrieval(nn.Module):
     def __init__(self,                 
-                 med_config = 'configs/med_config.json',  
+                 config = 'configs/bert_config.json',  
                  image_size = 112,
                  vit = 'arcface',                   
                  embed_dim = 256,     
-                 queue_size = 61440, #57600
+                 queue_size = 65536, #57600
                  momentum = 0.995,
                  negative_all_rank = False,
                  ):
@@ -30,23 +32,21 @@ class BLIP_Retrieval(nn.Module):
             print("missing keys in saved_checkpoint")
             print(msg)
         
-        self.tokenizer = init_tokenizer()   
-        med_config = BertConfig.from_json_file(med_config)
-        med_config.encoder_width = vision_width
-        self.text_encoder = BertModel(config=med_config, add_pooling_layer=False)          
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')  
+        en_config = BertConfig.from_json_file(config)
+        en_config.encoder_width = vision_width
+        self.text_encoder = BertForMaskedLM(config=en_config) #, add_pooling_layer=False)          
 
         text_width = self.text_encoder.config.hidden_size
-        
         self.vision_proj = nn.Linear(vision_width, embed_dim)
         self.text_proj = nn.Linear(text_width, embed_dim)
         self.itm_head = nn.Linear(text_width, 2) 
-        
         
         # create momentum encoders  
         self.visual_encoder_m = iresnet50()
         vision_width = 768            
         self.vision_proj_m = nn.Linear(vision_width, embed_dim)
-        self.text_encoder_m = BertModel(config=med_config, add_pooling_layer=False)    
+        self.text_encoder_m = BertForMaskedLM(config=en_config)#, add_pooling_layer=False)    
         self.text_proj_m = nn.Linear(text_width, embed_dim)
         
         self.model_pairs = [[self.visual_encoder, self.visual_encoder_m],
@@ -63,7 +63,7 @@ class BLIP_Retrieval(nn.Module):
         self.register_buffer("ptr_queue", torch.zeros(1, dtype=torch.long))  
 
         self.image_queue = nn.functional.normalize(self.image_queue, dim=0)
-        self.text_queue = nn.functional.normalize(self.text_queue, dim=0)
+        self.text_queue = nn.functional.normalize(self.text_queue,   dim=0)
         
         self.queue_size = queue_size
         self.momentum = momentum
@@ -85,11 +85,13 @@ class BLIP_Retrieval(nn.Module):
                               max_length=40, 
                               return_tensors="pt").to(image.device) 
         
-        text_output = self.text_encoder(text.input_ids, 
+        text_output = self.text_encoder.bert(text.input_ids, 
                                         attention_mask = text.attention_mask, 
                                         return_dict = True, 
-                                        mode = 'text')            
-        text_feat = F.normalize(self.text_proj(text_output.last_hidden_state[:,0,:]), dim=-1)        
+                                        mode = 'text')
+        
+        text_embeds = text_output.last_hidden_state            
+        text_feat = F.normalize(self.text_proj(text_embeds[:,0,:]), dim=-1)        
         
 
         ###============== Image-text Contrastive Learning ===================###
@@ -106,7 +108,7 @@ class BLIP_Retrieval(nn.Module):
             image_feat_m_all = torch.cat([image_feat_m.t(), 
                                           self.image_queue.clone().detach()], dim=1)                   
             
-            text_output_m = self.text_encoder_m(text.input_ids, 
+            text_output_m = self.text_encoder_m.bert(text.input_ids, 
                                                 attention_mask = text.attention_mask,                      
                                                 return_dict = True, 
                                                 mode = 'text')    
@@ -134,16 +136,17 @@ class BLIP_Retrieval(nn.Module):
 
 
         ###============== Image-text Matching ===================###
-        encoder_input_ids = text.input_ids.clone()
-        encoder_input_ids[:,0] = self.tokenizer.enc_token_id
+        #encoder_input_ids = text.input_ids.clone()
+        #encoder_input_ids[:,0] = self.tokenizer.enc_token_id
 
         # forward the positve image-text pair
         bs = image.size(0)
-        output_pos = self.text_encoder(encoder_input_ids,
+        output_pos = self.text_encoder.bert(encoder_embeds = text_embeds, 
                                        attention_mask = text.attention_mask,
                                        encoder_hidden_states = image_embeds,
                                        encoder_attention_mask = image_atts,      
                                        return_dict = True,
+                                       mode = 'fusion',
                                       )  
         
         if self.negative_all_rank:    
@@ -174,7 +177,7 @@ class BLIP_Retrieval(nn.Module):
             image_embeds_neg = torch.stack(image_embeds_neg,dim=0)   
 
             # select a negative text (from all ranks) for each image
-            input_ids_world = concat_all_gather(encoder_input_ids)
+            input_ids_world = concat_all_gather(text_embeds)
             att_mask_world = concat_all_gather(text.attention_mask)        
 
             text_ids_neg = []
@@ -209,24 +212,24 @@ class BLIP_Retrieval(nn.Module):
             text_atts_neg = []
             for b in range(bs):
                 neg_idx = torch.multinomial(weights_i2t[b], 1).item()
-                text_ids_neg.append(encoder_input_ids[neg_idx])
+                text_ids_neg.append(text_embeds[neg_idx])
                 text_atts_neg.append(text.attention_mask[neg_idx])            
             
         text_ids_neg = torch.stack(text_ids_neg,dim=0)   
         text_atts_neg = torch.stack(text_atts_neg,dim=0)      
 
-        text_ids_all = torch.cat([encoder_input_ids, text_ids_neg],dim=0)     
+        text_ids_all = torch.cat([text_embeds, text_ids_neg],dim=0)     
         text_atts_all = torch.cat([text.attention_mask, text_atts_neg],dim=0)     
 
         image_embeds_all = torch.cat([image_embeds_neg, image_embeds],dim=0)
-        image_atts_all = torch.cat([image_atts,image_atts],dim=0)
+        image_atts_all = torch.cat([image_atts, image_atts],dim=0)
 
-        output_neg = self.text_encoder(text_ids_all,
+        output_neg = self.text_encoder.bert(encoder_embeds = text_ids_all,
                                        attention_mask = text_atts_all,
                                        encoder_hidden_states = image_embeds_all,
                                        encoder_attention_mask = image_atts_all,      
                                        return_dict = True,
-                                      )                         
+                                       mode = 'fusion')                         
           
 
         vl_embeddings = torch.cat([output_pos.last_hidden_state[:,0,:], 
@@ -277,7 +280,7 @@ class BLIP_Retrieval(nn.Module):
 
 
 def facecpt_retrieval(pretrained='',**kwargs):
-    model = BLIP_Retrieval(**kwargs)
+    model = Retrieval(**kwargs)
     if pretrained:
         model,msg = load_checkpoint(model,pretrained)
         print("missing keys:")

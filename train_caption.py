@@ -1,6 +1,9 @@
 import argparse
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1' 
+import warnings
+warnings.filterwarnings('ignore')
+
 
 import ruamel.yaml as yaml
 import numpy as np
@@ -67,7 +70,6 @@ def test(model_without_ddp, test_loader, device, args, config):
             f.write(json.dumps(log_stats) + "\n") 
 
 
-
 @torch.no_grad()
 def evaluate(model, data_loader, device, config):
     # evaluate
@@ -80,10 +82,10 @@ def evaluate(model, data_loader, device, config):
     result = []
     for image, image_id in metric_logger.log_every(data_loader, print_freq, header): 
         
-        image = image.to(device)       
-        captions = model.generate(image, sample=False, 
+        image = image.to(device)    
+        captions = model.generate(image, sample=True, 
                                   num_beams=config['num_beams'], 
-                                  max_length=config['max_length'], 
+                                  max_length=config['max_length'] + 10, 
                                   min_length=config['min_length'])
         
         for caption, img_id in zip(captions, image_id):
@@ -116,10 +118,11 @@ def main(args, config):
     
     train_loader, val_loader, test_loader = create_loader([train_dataset, val_dataset, test_dataset],
                                             samplers,
-                                            batch_size=[config['batch_size']]*4,
-                                            num_workers=[4, 4, 4],
+                                            batch_size=[config['batch_size']] * 4,
+                                            num_workers=[1, 1, 1],
                                             is_trains=[True, False, False], 
                                             collate_fns=[None, None, None])         
+    
     #### Model #### 
     print("Creating model")
     model = facecpt_decoder(pretrained=config['pretrained'], 
@@ -140,7 +143,7 @@ def main(args, config):
                                   lr=config['init_lr'], 
                                   weight_decay=config['weight_decay'])
     
-
+ 
     if args.evaluate:
         test(model_without_ddp, test_loader, device,  args, config) 
         return 0 
@@ -186,7 +189,7 @@ def main(args, config):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str)) 
-    
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

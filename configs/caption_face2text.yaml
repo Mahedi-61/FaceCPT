@@ -3,16 +3,14 @@ ann_root: 'datasets/face2text/annotation'
 dataset: 'face2text'
 
 # set pretrained as a file path or an url
-pretrained: 'weights/facecpt_pretrain.pth' #model_base_caption_capfilt_large.pth
-
-# size of vit model; base or large
+pretrained: 'checkpoint/cp_pretrain_flip_04.pth'
 vit: 'arcface'
-batch_size: 32
-init_lr: 6e-5 #1e-5
+batch_size: 64
+init_lr: 3e-5 #1e-5
 
 # generation configs
 image_size: 112
-max_length: 50 
+max_length: 45  
 min_length: 15
 num_beams: 3
 prompt: 'a photo of a person where '

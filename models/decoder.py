@@ -807,7 +807,6 @@ class BertModel(BertPreTrainedModel):
         )
 
 
-
 class BertLMHeadModel(BertPreTrainedModel):
 
     _keys_to_ignore_on_load_unexpected = [r"pooler"]

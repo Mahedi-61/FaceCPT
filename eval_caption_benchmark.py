@@ -31,7 +31,7 @@ def evaluate(model, data_loader, device, config):
     for image, image_id in metric_logger.log_every(data_loader, print_freq, header): 
         image = image.to(device)       
         captions = model.generate(image, 
-                                  sample=False, 
+                                  sample=True, 
                                   num_beams=config['num_beams'], 
                                   max_length=config['max_length'], 
                                   min_length=config['min_length'])
@@ -74,7 +74,7 @@ def main(args, config):
     
     #### Model #### 
     print("Creating model")
-    model = facecpt_decoder(pretrained=config['pretrained'], 
+    model = facecpt_decoder(pretrained=config['pretrained'],
                             image_size=config['image_size'], 
                             vit=config['vit'], 
                             prompt=config['prompt'])
@@ -123,8 +123,8 @@ if __name__ == '__main__':
 
     yml = yaml.YAML(typ='rt')
     config = yml.load(open(args.config, 'r'))
-    config["image_root"] = os.path.join("datasets", args.dataset, "images")
-    config["ann_root"] = os.path.join("datasets", args.dataset, "annotation") 
+    config["image_root"] = os.path.join("../FaceCPT/datasets", args.dataset, "images")
+    config["ann_root"] = os.path.join("../FaceCPT/datasets", args.dataset, "annotation") 
 
 
     yd = yaml.YAML(typ='unsafe', pure=True)

@@ -15,7 +15,7 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 from torch.utils.data import DataLoader
 
-from models.facecpt_pretrain import blip_pretrain
+from models.facecpt_pretrain import flip_pretrain
 import utils
 from utils import warmup_lr_schedule, step_lr_schedule
 from data import create_dataset, create_sampler, create_loader
@@ -49,7 +49,7 @@ def train(model, data_loader, optimizer, epoch, device, config):
         
         # ramp up alpha in the first 2 epochs
         alpha = config['alpha'] * min(1, (epoch * len(data_loader) + i) / (2 * len(data_loader))) 
-
+  
         loss_ita, loss_itm, loss_lm = model(image, caption, alpha = alpha)  
         loss = loss_ita + loss_itm + loss_lm  
 
@@ -66,6 +66,7 @@ def train(model, data_loader, optimizer, epoch, device, config):
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger.global_avg())     
     return {k: "{:.3f}".format(meter.global_avg) for k, meter in metric_logger.meters.items()}  
+ 
 
 
 def main(args, config):
@@ -79,17 +80,18 @@ def main(args, config):
     random.seed(seed)
     cudnn.benchmark = True
 
-    #### Model #### 
     print("Creating model")
-    model = blip_pretrain(image_size=config['image_size'], 
+    model = flip_pretrain(image_size=config['image_size'], 
                             vit=config['vit'], 
                             queue_size=config['queue_size'])
 
     model = model.to(device)   
+
     optimizer = torch.optim.AdamW(params=model.parameters(), 
                                 lr=config['init_lr'], 
                                 weight_decay=config['weight_decay'])
     
+    start_epoch = 0
     if args.checkpoint:    
         checkpoint = torch.load(args.checkpoint, map_location='cpu') 
         state_dict = checkpoint['model']    
@@ -99,29 +101,30 @@ def main(args, config):
         print(msg)
 
         optimizer.load_state_dict(checkpoint['optimizer'])
-        #start_epoch = checkpoint['epoch'] + 1                
+        start_epoch = checkpoint['epoch'] + 1            
         print('resume checkpoint from %s' % args.checkpoint)
 
     else:
         # Allah help me
         print("loading previous pre-train models to save computation")
-        blip_base = "weights/model_base.pth"
-        cp_blip = torch.load(blip_base, map_location='cpu', weights_only=True)  
-        blip_dict = cp_blip['model']    
+        albef_base = "weights/albef_base.pth"
+        cp_albef = torch.load(albef_base, map_location='cpu', weights_only=True)  
+        albef_dict = cp_albef['model']    
 
-        flip_base = "weights/flip_base.pth"
-        cp_flip = torch.load(flip_base, map_location='cpu') 
-        flip_dict = cp_flip['model']   
+        blip_base = "weights/blip_base.pth"
+        cp_blip = torch.load(blip_base, map_location='cpu') 
+        blip_dict = cp_blip['model']   
 
-        common_key_set = (set(flip_dict.keys())).intersection(set(blip_dict.keys()))
-        for key in list(common_key_set):
-            blip_dict[key] = flip_dict[key]
+        decoder_dict = {}
+        for key in blip_dict.keys():
+            if "text_decoder" in key:
+                decoder_dict[key] = blip_dict[key]
 
-        #print(len(list(common_key_set)))
-        msg = model.load_state_dict(blip_dict, strict=False)    
+        decoder_dict.update(albef_dict)
+
+        msg = model.load_state_dict(decoder_dict, strict=False)    
         print("missing keys in saved facecpt checkpont: ")
         #print(msg)
-
 
     #### Dataset #### 
     print("Creating dataset")
@@ -135,20 +138,19 @@ def main(args, config):
 
     data_loader = create_loader(datasets,samplers,
                                 batch_size=[config['batch_size']], 
-                                num_workers=[4], 
+                                num_workers=[1], 
                                 is_trains=[True], 
                                 collate_fns=[None])[0]      
-  
-    start_epoch = 0
+    
     model_without_ddp = model
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, 
-                                        device_ids=[args.gpu], find_unused_parameters=True)
+                                device_ids=[args.gpu], find_unused_parameters=True)
         model_without_ddp = model.module    
         
     print("Start training")
     start_time = time.time()   
-
+    
     for epoch in range(start_epoch, config['max_epoch']):        
         step_lr_schedule(optimizer, epoch, 
                         config['init_lr'], 
@@ -177,15 +179,14 @@ def main(args, config):
                 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    print('Training time {}'.format(total_time_str)) 
-
-
+    print('Training time {}'.format(total_time_str))
+ 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config',     default='./configs/pretrain.yaml')
     parser.add_argument('--output_dir', default='output/pretrain')  
-    parser.add_argument('--checkpoint', default='') #output/pretrain/cp_pretrain_flip_00.pth
+    parser.add_argument('--checkpoint', default='')
     parser.add_argument('--evaluate',   action='store_true')    
     parser.add_argument('--device',     default='cuda')
     parser.add_argument('--seed',       default=42, type=int)
@@ -204,7 +205,8 @@ if __name__ == '__main__':
 
 
 """
-Running code
+Run this code
 python3 -m torch.distributed.run --nproc-per-node=2 pretrain.py
-Put gradeint update on ArcFace model = True
+Finetuning checklist
+1. Put gradeint update on ArcFace model = True
 """

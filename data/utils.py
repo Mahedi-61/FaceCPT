@@ -70,13 +70,15 @@ def cap_metrics(gen_caption, ref_caption):
                  b4["bleu"], rL["rougeL"], m["meteor"])
 
     meter.average()
+    """
     print("BLEU@1: ", meter.belu_1)
     print("BLEU@2: ", meter.belu_2)
     print("BLEU@3: ", meter.belu_3)
-    print("BLEU@4: ", meter.belu_4)
 
+    print("BLEU@4: ", meter.belu_4)
     print("ROUGE_L: ", meter.rougeL)
     print("METEOR: ", meter.meteor)
+    """
 
     return {"BLEU@4" : meter.belu_4, 
             "rougeL" : meter.rougeL, 
@@ -162,7 +164,13 @@ def caption_eval(ann_root, results_file, split):
     # calculating SPICE score
     s = Spice()
     sscore, _ = s.compute_score(ref_caption, gen_caption)
+    print("BLEU@4: ", eval_dict['BLEU@4'])
+    print("rougeL: ", eval_dict['rougeL'])
+    print("METEOR: ", eval_dict['METEOR'])
+
     print("SPICE: ", sscore)
     print("CIDEr: ", cscore)
+
+
     eval_dict.update({"CIDEr" :cscore, "SPICE" : sscore})
     return eval_dict

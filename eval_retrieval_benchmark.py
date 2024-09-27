@@ -17,7 +17,7 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 from torch.utils.data import DataLoader
 
-from models.blip_retrieval import facecpt_retrieval
+from models.face_retrieval import facecpt_retrieval
 import utils
 from utils import cosine_lr_schedule
 from data import create_dataset, create_sampler, create_loader
@@ -60,7 +60,7 @@ def evaluation(model, data_loader, device, config):
                                      max_length=40, 
                                      return_tensors="pt").to(device) 
         
-        text_output = model.text_encoder(text_input.input_ids, 
+        text_output = model.text_encoder.bert(text_input.input_ids, 
                                          attention_mask = text_input.attention_mask, 
                                          mode='text')  
         
@@ -72,7 +72,7 @@ def evaluation(model, data_loader, device, config):
     text_embeds = torch.cat(text_embeds,dim=0)
     text_ids = torch.cat(text_ids,dim=0)
     text_atts = torch.cat(text_atts,dim=0)
-    text_ids[:,0] = model.tokenizer.enc_token_id
+    #text_ids[:,0] = model.tokenizer.enc_token_id
     
     image_feats = []
     image_embeds = []
@@ -111,11 +111,12 @@ def evaluation(model, data_loader, device, config):
         encoder_output = image_feats[topk_idx].to(device)
         encoder_att = torch.ones(encoder_output.size()[:-1],dtype=torch.long).to(device)
 
-        output = model.text_encoder(text_ids[start+i].repeat(config['k_test'],1), 
+        output = model.text_encoder.bert(text_ids[start+i].repeat(config['k_test'],1), 
                                 attention_mask = text_atts[start+i].repeat(config['k_test'],1),
                                 encoder_hidden_states = encoder_output,
                                 encoder_attention_mask = encoder_att,                             
                                 return_dict = True,
+                                mode = "fusion",
                                 )
         score = model.itm_head(output.last_hidden_state[:,0,:])[:,1]
         score_matrix_t2i[start+i,topk_idx] = score + topk_sim
@@ -167,7 +168,7 @@ def main(args, config):
     #### Dataset #### 
     print("Creating retrieval dataset")
     test_dataset = create_dataset('retrieval_benchmark', config)  
-    """
+
     if args.distributed:
         num_tasks = utils.get_world_size()
         global_rank = utils.get_rank()            
@@ -187,10 +188,10 @@ def main(args, config):
     #### Model #### 
     print("Creating model")
     model = facecpt_retrieval(pretrained=config['pretrained'], 
-                              image_size=config['image_size'], 
-                              vit=config['vit'], 
-                              queue_size=config['queue_size'], 
-                              negative_all_rank=config['negative_all_rank'])
+                            image_size=config['image_size'], 
+                            vit=config['vit'], 
+                            queue_size=config['queue_size'], 
+                            negative_all_rank=config['negative_all_rank'])
 
     print("Start Testing")
     start_time = time.time()
@@ -207,13 +208,12 @@ def main(args, config):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Testing time {}'.format(total_time_str)) 
-    """
-  
+
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()     
     parser.add_argument('--dataset',    default='celeba')         
-    parser.add_argument('--evaluate',   action='store_true')
     parser.add_argument('--device',     default='cuda')
     parser.add_argument('--seed',       default=42, type=int)
     parser.add_argument('--world_size', default=1, type=int, help='number of distributed processes')    
@@ -227,11 +227,14 @@ if __name__ == '__main__':
     yml = yaml.YAML(typ='rt')
     config = yml.load(open(args.config, 'r'))
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+
+    config["image_root"] = os.path.join("../FaceCPT/datasets", args.dataset, "images")
+    config["ann_root"] = os.path.join("../FaceCPT/datasets", args.dataset, "annotation") 
     
     yd = yaml.YAML(typ='unsafe', pure=True)
     yd.dump(config, open(os.path.join(args.output_dir, 'config.yaml'), 'w'))    
     
     main(args, config)
     """
-    python3 -m torch.distributed.run --nproc-per-node=2 eval_retrieval_benchmark.py --dataset lfw --evaluate 
+    python3 -m torch.distributed.run --nproc-per-node=2 eval_retrieval_benchmark.py --dataset celeba
     """

@@ -2,7 +2,7 @@ image_root: ''
 ann_root: '' 
 
 # set pretrained as a file path or an url
-pretrained: 'checkpoint/caption/cp_caption_celeba.pth' #model_base_caption_capfilt_large.pth
+pretrained: 'checkpoint/cp_caption_celeba.pth' #model_base_caption_capfilt_large.pth
 
 # size of vit model; base or large
 vit: 'arcface'

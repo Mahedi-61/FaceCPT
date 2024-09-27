@@ -17,7 +17,7 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 from torch.utils.data import DataLoader
 
-from models.blip_retrieval import facecpt_retrieval
+from models.face_retrieval import facecpt_retrieval
 import utils
 from utils import cosine_lr_schedule
 from data import create_dataset, create_sampler, create_loader
@@ -64,9 +64,7 @@ def test(model_without_ddp, test_loader, device, args, config):
     score_test_t2i = evaluation(model_without_ddp, test_loader, device, config) #score_test_i2t
 
     if utils.is_main_process():
-        test_result = itm_eval(score_test_t2i, #score_test_i2t, 
-                               test_loader.dataset.txt2img, 
-                               test_loader.dataset.img2txt) 
+        test_result = itm_eval(score_test_t2i, test_loader.dataset.txt2img) 
         print(test_result)
         log_stats = {**{f'test_{k}': v for k, v in test_result.items()}}
         with open(os.path.join(args.output_dir, "test_evaluate.txt"),"a") as f:
@@ -92,24 +90,26 @@ def evaluation(model, data_loader, device, config):
 
     for i in range(0, num_text, text_bs):
         text = texts[i: min(num_text, i+text_bs)]
-        text_input = model.tokenizer(text, padding='max_length', 
+        text_input = model.tokenizer(text, 
+                                     padding='max_length', 
                                      truncation=True, 
                                      max_length=40, 
                                      return_tensors="pt").to(device) 
         
-        text_output = model.text_encoder(text_input.input_ids, 
+        text_output = model.text_encoder.bert(text_input.input_ids, 
                                          attention_mask = text_input.attention_mask, 
-                                         mode='text')  
+                                         return_dict = True, 
+                                         mode = 'text')  
         
         text_embed = F.normalize(model.text_proj(text_output.last_hidden_state[:, 0, :]))
         text_embeds.append(text_embed)   
         text_ids.append(text_input.input_ids)
         text_atts.append(text_input.attention_mask)
     
-    text_embeds = torch.cat(text_embeds,dim=0)
+    text_embeds = torch.cat(text_embeds, dim=0)
     text_ids = torch.cat(text_ids,dim=0)
     text_atts = torch.cat(text_atts,dim=0)
-    text_ids[:,0] = model.tokenizer.enc_token_id
+    #text_ids[:,0] = model.tokenizer.enc_token_id
     
     image_feats = []
     image_embeds = []
@@ -127,31 +127,10 @@ def evaluation(model, data_loader, device, config):
     image_embeds = torch.cat(image_embeds,dim=0)
     
     sims_matrix = image_embeds @ text_embeds.t()
-    #score_matrix_i2t = torch.full((len(data_loader.dataset.image), 
-    #                               len(texts)), -100.0).to(device)
-    
+
     num_tasks = utils.get_world_size()
     rank = utils.get_rank() 
 
-    """
-    step = sims_matrix.size(0)//num_tasks + 1
-    start = rank*step
-    end = min(sims_matrix.size(0),start+step)
-
-    for i,sims in enumerate(metric_logger.log_every(sims_matrix[start:end], 100, "Evaluation")): 
-        topk_sim, topk_idx = sims.topk(k=config['k_test'], dim=0)
-
-        encoder_output = image_feats[start+i].repeat(config['k_test'],1,1).to(device)
-        encoder_att = torch.ones(encoder_output.size()[:-1],dtype=torch.long).to(device)
-        output = model.text_encoder(text_ids[topk_idx], 
-                                    attention_mask = text_atts[topk_idx],
-                                    encoder_hidden_states = encoder_output,
-                                    encoder_attention_mask = encoder_att,                             
-                                    return_dict = True,
-                                   )
-        score = model.itm_head(output.last_hidden_state[:,0,:])[:,1]
-        score_matrix_i2t[start+i,topk_idx] = score + topk_sim
-    """
     
     # caption --> face 
     sims_matrix = sims_matrix.t()
@@ -159,7 +138,7 @@ def evaluation(model, data_loader, device, config):
     
     step = sims_matrix.size(0)//num_tasks + 1
     start = rank*step
-    end = min(sims_matrix.size(0),start+step)  
+    end = min(sims_matrix.size(0), start+step)  
     
     
     for i,sims in enumerate(metric_logger.log_every(sims_matrix[start:end], 100, "Evaluation")):
@@ -169,50 +148,32 @@ def evaluation(model, data_loader, device, config):
         encoder_output = image_feats[topk_idx].to(device)
         encoder_att = torch.ones(encoder_output.size()[:-1],dtype=torch.long).to(device)
 
-        output = model.text_encoder(text_ids[start+i].repeat(config['k_test'],1), 
+        output = model.text_encoder.bert(text_ids[start+i].repeat(config['k_test'],1), 
                                 attention_mask = text_atts[start+i].repeat(config['k_test'],1),
                                 encoder_hidden_states = encoder_output,
                                 encoder_attention_mask = encoder_att,                             
                                 return_dict = True,
+                                mode = 'fusion',
                                 )
         score = model.itm_head(output.last_hidden_state[:,0,:])[:,1]
-        score_matrix_t2i[start+i,topk_idx] = score + topk_sim
+        score_matrix_t2i[start+i, topk_idx] = score + topk_sim
 
     if args.distributed:
         dist.barrier()   
-        #torch.distributed.all_reduce(score_matrix_i2t, op=torch.distributed.ReduceOp.SUM) 
         torch.distributed.all_reduce(score_matrix_t2i, op=torch.distributed.ReduceOp.SUM)        
         
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Evaluation time {}'.format(total_time_str)) 
-    return score_matrix_t2i.cpu().numpy() #score_matrix_i2t.cpu().numpy(), 
+    return score_matrix_t2i.cpu().numpy() 
 
 
 @torch.no_grad()
-def itm_eval(scores_t2i, txt2img, img2txt): #scores_i2t
-    
-    #Images->Text 
-    """ 
-    ranks = np.zeros(scores_i2t.shape[0])
-    for index,score in enumerate(scores_i2t):
-        inds = np.argsort(score)[::-1]
-        rank = 1e20
-        for i in img2txt[index]:
-            tmp = np.where(inds == i)[0][0]
-            if tmp < rank:
-                rank = tmp
-        ranks[index] = rank
-
-    # Compute metrics
-    tr1 = 100.0 * len(np.where(ranks < 1)[0]) / len(ranks)
-    tr5 = 100.0 * len(np.where(ranks < 5)[0]) / len(ranks)
-    tr10 = 100.0 * len(np.where(ranks < 10)[0]) / len(ranks)
-    """
-
+def itm_eval(scores_t2i, txt2img): 
     #Text->Images 
-    ranks = np.zeros(scores_t2i.shape[0])    
-    for index,score in enumerate(scores_t2i):
+    ranks = np.zeros(scores_t2i.shape[0])   
+
+    for index, score in enumerate(scores_t2i):
         inds = np.argsort(score)[::-1]
         ranks[index] = np.where(inds == txt2img[index])[0][0]
 
@@ -221,10 +182,7 @@ def itm_eval(scores_t2i, txt2img, img2txt): #scores_i2t
     ir5 = 100.0 * len(np.where(ranks < 5)[0]) / len(ranks)
     ir10 = 100.0 * len(np.where(ranks < 10)[0]) / len(ranks)        
 
-    #tr_mean = (tr1 + tr5 + tr10) / 3
     ir_mean = (ir1 + ir5 + ir10) / 3
-    #r_mean = (tr_mean + ir_mean) / 2
-
     eval_result =  {'txt2img_r1': ir1,
                     'txt2img_r5': ir5,
                     'txt2img_r10': ir10,
@@ -303,9 +261,7 @@ def main(args, config):
         score_val_t2i = evaluation(model_without_ddp, val_loader, device, config) #score_val_i2t
 
         if utils.is_main_process():  
-            val_result = itm_eval(score_val_t2i,  #score_val_i2t,
-                                  val_loader.dataset.txt2img, 
-                                  val_loader.dataset.img2txt)  
+            val_result = itm_eval(score_val_t2i, val_loader.dataset.txt2img)  
             
             print("Eval results")
             print(val_result)
