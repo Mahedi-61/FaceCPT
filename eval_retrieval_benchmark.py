@@ -189,7 +189,7 @@ def main(args, config):
     print("Creating model")
     model = facecpt_retrieval(pretrained=config['pretrained'], 
                             image_size=config['image_size'], 
-                            vit=config['vit'], 
+                            img_encoder=config['img_encoder'], 
                             queue_size=config['queue_size'], 
                             negative_all_rank=config['negative_all_rank'])
 

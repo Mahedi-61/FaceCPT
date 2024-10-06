@@ -14,9 +14,9 @@ class Retrieval(nn.Module):
     def __init__(self,                 
                  config = 'configs/bert_config.json',  
                  image_size = 112,
-                 vit = 'arcface',                   
+                 img_encoder = 'arcface',                   
                  embed_dim = 256,     
-                 queue_size = 65536, #57600
+                 queue_size = 65536, 
                  momentum = 0.995,
                  negative_all_rank = False,
                  ):
@@ -25,7 +25,7 @@ class Retrieval(nn.Module):
         self.visual_encoder = iresnet50()
         vision_width = 768
         
-        if vit=='arcface':
+        if img_encoder=='arcface':
             checkpoint = torch.load("weights/arcface_ir50_ms1mv3.pth", 
                             map_location=torch.device('cpu'), weights_only=True)
             msg = self.visual_encoder.load_state_dict(checkpoint, strict=False)
@@ -35,7 +35,7 @@ class Retrieval(nn.Module):
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')  
         en_config = BertConfig.from_json_file(config)
         en_config.encoder_width = vision_width
-        self.text_encoder = BertForMaskedLM(config=en_config) #, add_pooling_layer=False)          
+        self.text_encoder = BertForMaskedLM(config=en_config)
 
         text_width = self.text_encoder.config.hidden_size
         self.vision_proj = nn.Linear(vision_width, embed_dim)
@@ -46,7 +46,7 @@ class Retrieval(nn.Module):
         self.visual_encoder_m = iresnet50()
         vision_width = 768            
         self.vision_proj_m = nn.Linear(vision_width, embed_dim)
-        self.text_encoder_m = BertForMaskedLM(config=en_config)#, add_pooling_layer=False)    
+        self.text_encoder_m = BertForMaskedLM(config=en_config)
         self.text_proj_m = nn.Linear(text_width, embed_dim)
         
         self.model_pairs = [[self.visual_encoder, self.visual_encoder_m],
@@ -71,7 +71,7 @@ class Retrieval(nn.Module):
         self.negative_all_rank = negative_all_rank
         
         
-    def forward(self, image, caption, alpha, idx):
+    def forward(self, image, caption, alpha, idx, max_length):
         with torch.no_grad():
             self.temp.clamp_(0.001, 0.5)
         
@@ -82,7 +82,7 @@ class Retrieval(nn.Module):
         text = self.tokenizer(caption, 
                               padding='max_length', 
                               truncation=True, 
-                              max_length=40, 
+                              max_length=max_length, 
                               return_tensors="pt").to(image.device) 
         
         text_output = self.text_encoder.bert(text.input_ids, 
@@ -136,10 +136,7 @@ class Retrieval(nn.Module):
 
 
         ###============== Image-text Matching ===================###
-        #encoder_input_ids = text.input_ids.clone()
-        #encoder_input_ids[:,0] = self.tokenizer.enc_token_id
-
-        # forward the positve image-text pair
+        # positve image-text pair
         bs = image.size(0)
         output_pos = self.text_encoder.bert(encoder_embeds = text_embeds, 
                                        attention_mask = text.attention_mask,
@@ -282,7 +279,8 @@ class Retrieval(nn.Module):
 def facecpt_retrieval(pretrained='',**kwargs):
     model = Retrieval(**kwargs)
     if pretrained:
-        model,msg = load_checkpoint(model,pretrained)
+        print("loading checkpoint form: ", pretrained)
+        model,msg = load_checkpoint(model, pretrained)
         print("missing keys:")
         print(msg.missing_keys)
     return model 

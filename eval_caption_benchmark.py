@@ -76,7 +76,7 @@ def main(args, config):
     print("Creating model")
     model = facecpt_decoder(pretrained=config['pretrained'],
                             image_size=config['image_size'], 
-                            vit=config['vit'], 
+                            img_encoder=config['img_encoder'], 
                             prompt=config['prompt'])
 
     model = model.to(device)   

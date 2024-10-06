@@ -1,11 +1,8 @@
 image_root: ''
 ann_root: '' 
 
-# set pretrained as a file path or an url
-pretrained: 'checkpoint/cp_caption_celeba.pth' #model_base_caption_capfilt_large.pth
-
-# size of vit model; base or large
-vit: 'arcface'
+pretrained: 'checkpoint/cp_caption_celeba.pth' 
+img_encoder: 'arcface'
 batch_size: 32
 
 # generation configs

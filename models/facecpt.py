@@ -16,19 +16,14 @@ class BLIP_Base(nn.Module):
     def __init__(self,                 
                  med_config = 'configs/med_config.json',  
                  image_size = 112,
-                 vit = 'arcface',            
+                 img_encoder = 'arcface',            
                  ):
-        """
-        Args:
-            med_config (str): path for the mixture of encoder-decoder model's configuration file
-            image_size (int): input image size
-            vit (str): model size of vision transformer
-        """               
+           
         super().__init__()
         self.visual_encoder = iresnet50()
         vision_width = 768
         
-        if vit=='arcface':
+        if img_encoder =='arcface':
             checkpoint = torch.load("weights/arcface_ir50_ms1mv3.pth", 
                             map_location=torch.device('cpu'), weights_only=True)
             msg = self.visual_encoder.load_state_dict(checkpoint, strict=False)
@@ -76,7 +71,7 @@ class FaceCPT_Decoder(nn.Module):
     def __init__(self,                 
                  config = 'configs/decoder_config.json',  
                  image_size = 112,
-                 vit = 'arcface',
+                 img_encoder = 'arcface',
                  prompt = 'a photo of a person where ',
                  ):
            
@@ -84,7 +79,7 @@ class FaceCPT_Decoder(nn.Module):
         self.visual_encoder = iresnet50()
         vision_width = 768
 
-        if vit=='arcface':
+        if img_encoder == 'arcface':
             checkpoint = torch.load("weights/arcface_ir50_ms1mv3.pth", 
                             map_location=torch.device('cpu'), weights_only=True)
             msg = self.visual_encoder.load_state_dict(checkpoint, strict=False)

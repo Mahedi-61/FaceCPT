@@ -1,18 +1,18 @@
-image_root: 'datasets/face2text/images/'
-ann_root: 'datasets/face2text/annotation'
+image_root: './datasets/face2text/images/'
+ann_root: './datasets/face2text/annotation'
 dataset: 'face2text'
 
 # set pretrained as a file path or an url
 pretrained: 'checkpoint/cp_pretrain_flip_04.pth'
-vit: 'arcface'
+img_encoder: 'arcface'
 batch_size: 64
-init_lr: 3e-5 #1e-5
+init_lr: 1e-5 #1e-5
 
 # generation configs
 image_size: 112
-max_length: 45  
+max_length: 55  
 min_length: 15
-num_beams: 3
+num_beams: 5
 prompt: 'a photo of a person where '
 
 # optimizer

@@ -43,7 +43,7 @@ def train(model, data_loader, optimizer, epoch, device, config):
         else:
             alpha = config['alpha'] * min(1,i/len(data_loader))
 
-        loss_ita, loss_itm = model(image, caption, alpha=alpha, idx=idx)                  
+        loss_ita, loss_itm = model(image, caption, alpha=alpha, idx=idx, max_length=config['max_length'])                  
         loss = loss_ita + loss_itm
         
         optimizer.zero_grad()
@@ -61,7 +61,7 @@ def train(model, data_loader, optimizer, epoch, device, config):
 
 
 def test(model_without_ddp, test_loader, device, args, config):
-    score_test_t2i = evaluation(model_without_ddp, test_loader, device, config) #score_test_i2t
+    score_test_t2i = evaluation(model_without_ddp, test_loader, device, config) 
 
     if utils.is_main_process():
         test_result = itm_eval(score_test_t2i, test_loader.dataset.txt2img) 
@@ -93,7 +93,7 @@ def evaluation(model, data_loader, device, config):
         text_input = model.tokenizer(text, 
                                      padding='max_length', 
                                      truncation=True, 
-                                     max_length=40, 
+                                     max_length=config['max_length'], 
                                      return_tensors="pt").to(device) 
         
         text_output = model.text_encoder.bert(text_input.input_ids, 
@@ -109,7 +109,6 @@ def evaluation(model, data_loader, device, config):
     text_embeds = torch.cat(text_embeds, dim=0)
     text_ids = torch.cat(text_ids,dim=0)
     text_atts = torch.cat(text_atts,dim=0)
-    #text_ids[:,0] = model.tokenizer.enc_token_id
     
     image_feats = []
     image_embeds = []
@@ -141,7 +140,7 @@ def evaluation(model, data_loader, device, config):
     end = min(sims_matrix.size(0), start+step)  
     
     
-    for i,sims in enumerate(metric_logger.log_every(sims_matrix[start:end], 100, "Evaluation")):
+    for i,sims in enumerate(metric_logger.log_every(sims_matrix[start:end], 500, "Evaluation")):
         
         topk_sim, topk_idx = sims.topk(k=config['k_test'], dim=0)
         image_feats = image_feats.to(device)
@@ -225,7 +224,7 @@ def main(args, config):
     print("Creating model")
     model = facecpt_retrieval(pretrained=config['pretrained'], 
                               image_size=config['image_size'], 
-                              vit=config['vit'], 
+                              img_encoder=config['img_encoder'], 
                               queue_size=config['queue_size'], 
                               negative_all_rank=config['negative_all_rank'])
 
@@ -258,7 +257,7 @@ def main(args, config):
         cosine_lr_schedule(optimizer, epoch, config['max_epoch'], config['init_lr'], config['min_lr'])            
         train_stats = train(model, train_loader, optimizer, epoch, device, config)  
             
-        score_val_t2i = evaluation(model_without_ddp, val_loader, device, config) #score_val_i2t
+        score_val_t2i = evaluation(model_without_ddp, val_loader, device, config) 
 
         if utils.is_main_process():  
             val_result = itm_eval(score_val_t2i, val_loader.dataset.txt2img)  
@@ -273,7 +272,7 @@ def main(args, config):
                     'config': config,
                     'epoch': epoch,
                 }
-                torch.save(save_obj, os.path.join(args.output_dir, 'checkpoint_best.pth'))  
+                torch.save(save_obj, os.path.join(args.output_dir, 'cp_retrieval_face2text_arc18.pth'))  
                 best = val_result['txt2img_r_mean']        
                 best_epoch = epoch  
 
@@ -295,7 +294,7 @@ def main(args, config):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()     
-    parser.add_argument('--dataset', default='celeba')         
+    parser.add_argument('--dataset', default='face2text')         
     parser.add_argument('--evaluate', action='store_true')
     parser.add_argument('--device', default='cuda')
     parser.add_argument('--seed', default=42, type=int)
@@ -316,6 +315,6 @@ if __name__ == '__main__':
     
     main(args, config)
     """
-    python3 -m torch.distributed.run --nproc-per-node=2 train_retrieval.py --dataset celeba --evaluate 
+    python3 -m torch.distributed.run --nproc-per-node=2 train_retrieval.py --dataset face2text --evaluate 
     Put gradeint update on ArcFace model = False
     """

@@ -4,7 +4,6 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 import warnings
 warnings.filterwarnings('ignore')
 
-
 import ruamel.yaml as yaml
 import numpy as np
 import random
@@ -127,7 +126,7 @@ def main(args, config):
     print("Creating model")
     model = facecpt_decoder(pretrained=config['pretrained'], 
                          image_size=config['image_size'], 
-                         vit=config['vit'], 
+                         img_encoder=config['img_encoder'], 
                          prompt=config['prompt'])
 
     model = model.to(device)   

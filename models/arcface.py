@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
+from torchsummary import summary
 
 __all__ = ['iresnet18', 'iresnet34', 'iresnet50', 'iresnet100', 'iresnet200']
 using_ckpt = False
@@ -108,17 +109,6 @@ class IResNet(nn.Module):
         nn.init.constant_(self.features.weight, 1.0)
         self.features.weight.requires_grad = False
 
-        ############# extra layers for 768-D projection
-        self.bn512 = nn.BatchNorm1d(512, eps=1e-05,)
-        self.prelu512 = nn.PReLU()
-        nn.init.constant_(self.bn512.weight, 1)
-
-        self.fc768 = nn.Linear(512, 768)
-        self.features768 = nn.BatchNorm1d(768, eps=1e-05)
-        nn.init.constant_(self.features768.weight, 1.0)
-        self.features768.weight.requires_grad = False 
-        #############
-
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.normal_(m.weight, 0, 0.1)
@@ -165,21 +155,16 @@ class IResNet(nn.Module):
             x = self.layer1(x)
             x = self.layer2(x)
             x = self.layer3(x)
+            lc_feats = x
             x = self.layer4(x)
+            
             x = self.bn2(x)
             x = torch.flatten(x, 1)
             x = self.dropout(x)
+            x = self.fc(x.float() if self.fp16 else x)
             
-        x = self.fc(x.float() if self.fp16 else x)
-
-        ######## extra code for 768-D projection
-        y = self.prelu512(self.bn512(x))
-        y = self.fc768(y)
-        y = self.features768(y)
-        #################################
-
-        #x = self.features(x)
-        return y
+        x = self.features(x)
+        return x, lc_feats
 
 
 def _iresnet(arch, block, layers, pretrained, progress, **kwargs):
@@ -204,7 +189,7 @@ def iresnet50(pretrained=False, progress=True, **kwargs):
                     progress, **kwargs)
 
 
-def iresnet100(pretrained=False, progress=True, **kwargs):
+def iresnet101(pretrained=False, progress=True, **kwargs):
     return _iresnet('iresnet100', IBasicBlock, [3, 13, 30, 3], pretrained,
                     progress, **kwargs)
 
@@ -214,13 +199,22 @@ def iresnet200(pretrained=False, progress=True, **kwargs):
                     progress, **kwargs)
 
 
+class AttributeModel(nn.Module):
+    def __init__(self, num_attributes=40, args=None):
+        super(AttributeModel, self).__init__()
+
+        self.dropout = nn.Dropout(p=0.15, inplace=False)
+        if args.architecture == "ir_50":
+            self.final_layer = nn.Linear(in_features = 512, 
+                                         out_features = num_attributes, 
+                                         bias=True)
+
+    def forward(self, x):
+        return self.final_layer(self.dropout(x))
+
+
 if __name__ == "__main__":
     x = torch.randn((16, 3, 112, 112))
     net = iresnet18()
-    checkpoint = torch.load("../weights/arcface_ir18_ms1mv3.pth", 
-                            map_location=torch.device('cpu'), weights_only=True)
-    msg = net.load_state_dict(checkpoint, strict=False)
-    y = net(x)
-    print(y.size())
-    y = torch.unsqueeze(y, dim=1)
-    print(y.size())
+    x, lc_feats = net(x)
+    print(x.size())

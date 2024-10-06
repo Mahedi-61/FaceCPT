@@ -1,16 +1,15 @@
-image_root: '../FaceCPT/datasets/celeba_dialog/images/'
-ann_root: '../FaceCPT/datasets/celeba_dialog/annotation'
+image_root: './datasets/celeba_dialog/images/'
+ann_root: './datasets/celeba_dialog/annotation'
 dataset: 'celeba_dialog'
 
 # set pretrained as a file path or an url
 pretrained: 'checkpoint/cp_pretrain_flip_02.pth' 
-vit: 'arcface'
+img_encoder: 'arcface'
 batch_size: 64
 init_lr: 2e-5 #1e-5
 
-# generation configs
 image_size: 112
-max_length: 50  
+max_length: 45  
 min_length: 15
 num_beams: 3
 prompt: 'a photo of a person where '

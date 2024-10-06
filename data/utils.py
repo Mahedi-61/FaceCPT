@@ -2,13 +2,18 @@ import re
 import json
 import os
 import torch
+from torch.autograd import Variable
+import torchvision.transforms as transforms
 import torch.distributed as dist
 import utils
 import evaluate
 from tqdm import tqdm
-import numpy as np 
 from pycocoevalcap.cider.cider import Cider
 from pycocoevalcap.spice.spice import Spice
+import numpy as np
+from PIL import Image
+from albumentations.pytorch import ToTensorV2
+import albumentations as A 
 
 
 class AverageMeter(object):
@@ -53,7 +58,7 @@ def cap_metrics(gen_caption, ref_caption):
     meter = AverageMeter()
 
     keys = list(gen_caption.keys())
-    #loop = tqdm(keys, total=len(keys))
+
     #for key in loop:
     gcap = [gen_caption[key] for key in keys]
     rcap = [ref_caption[key] for key in keys]
@@ -115,8 +120,8 @@ def save_result(result, result_dir, filename, remove_duplicate=''):
     json.dump(result,open(result_file,'w'))
     dist.barrier()
 
+    # combine results from all processes
     if utils.is_main_process():   
-        # combine results from all processes
         result = []
 
         for rank in range(utils.get_world_size()):
@@ -159,7 +164,6 @@ def caption_eval(ann_root, results_file, split):
     c = Cider()
     gen_caption = {file['image_id']: [file['caption']] for file in res_file}
     cscore, _ = c.compute_score(ref_caption, gen_caption)
-    
 
     # calculating SPICE score
     s = Spice()
@@ -174,3 +178,61 @@ def caption_eval(ann_root, results_file, split):
 
     eval_dict.update({"CIDEr" :cscore, "SPICE" : sscore})
     return eval_dict
+
+
+
+
+def transform_images(img_path, split):
+    img = np.array(Image.open(img_path).convert('RGB')) 
+    sample_transforms = [
+        A.HorizontalFlip(),
+        A.ColorJitter(),
+        A.Rotate(15),
+        A.RandomBrightnessContrast(),
+        A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.3, rotate_limit=30, p=0.5),
+        A.HueSaturationValue(p = 0.3)
+    ]
+
+    train_transforms = A.Compose([
+        *sample_transforms,
+        A.Normalize(mean = [0.5, 0.5, 0.5],  
+                    std =  [0.5, 0.5, 0.5],  
+                    always_apply=True),
+        ToTensorV2()
+    ])
+
+    valid_transforms = A.Compose([
+        A.Normalize(mean=[0.5, 0.5, 0.5], 
+                    std =[0.5, 0.5, 0.5], always_apply=True),
+        ToTensorV2()
+    ])
+
+    if split == "train": tfms = train_transforms
+    elif split == "test" or split == "valid":  tfms = valid_transforms
+
+    img = tfms(image=img)["image"] 
+    return img
+
+
+def do_flip_test_images(img_path):
+    img = np.array(Image.open(img_path).convert('RGB')) 
+    tfms = A.Compose([
+        A.HorizontalFlip(p = 1),
+        A.Normalize(mean=[0.5, 0.5, 0.5], 
+                    std =[0.5, 0.5, 0.5], always_apply=True),
+        ToTensorV2()
+    ])
+
+    img = tfms(image=img)["image"] 
+    return img
+
+
+
+all_attributes = ["5_o_Clock_Shadow",	"Arched_Eyebrows",	"Attractive",	"Bags_Under_Eyes",	"Bald",	
+                "Bangs",	"Big_Lips",	"Big_Nose",	"Black_Hair", "Blond_Hair",	
+                "Blurry",	"Brown_Hair",	"Bushy_Eyebrows",	"Chubby",	"Double_Chin",
+                "Eyeglasses",	"Goatee",	"Gray_Hair",	"Heavy_Makeup",	"High_Cheekbones",
+                "Male",	"Mouth_Slightly_Open",	"Mustache", "Narrow_Eyes", "No_Beard",
+                "Oval_Face", "Pale_Skin", "Pointy_Nose", "Receding_Hairline", "Rosy_Cheeks",	
+                "Sideburns", "Smiling",	"Straight_Hair", 	"Wavy_Hair",	"Wearing_Earrings",
+                "Wearing_Hat",	"Wearing_Lipstick", "Wearing_Necklace", "Wearing_Necktie", "Young"]

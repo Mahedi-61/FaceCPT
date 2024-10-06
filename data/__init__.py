@@ -3,18 +3,16 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.transforms.functional import InterpolationMode
 
-from data.coco_karpathy_dataset import coco_karpathy_train, coco_karpathy_retrieval_eval
 from data.retrieval_dataset import dataset_retrieval_eval, dataset_retrieval_train
 from data.caption_dataset import dataset_caption_train, dataset_caption_eval
 from data.benchmark_dataset import benchmark_caption_eval, benchmark_retrieval_eval
 from data.flip_dataset import flip_pretrain
 from data.randaugment import RandomAugment
-
  
 
 def create_dataset(dataset, config, min_scale=0.5):
-    normalize = transforms.Normalize((0.48145466, 0.4578275, 0.40821073), 
-                                     (0.26862954, 0.26130258, 0.27577711))
+    normalize = transforms.Normalize((0.5, 0.5, 0.5), 
+                                     (0.5, 0.5, 0.5))
 
     transform_train = transforms.Compose([                        
             transforms.RandomHorizontalFlip(),
@@ -37,12 +35,11 @@ def create_dataset(dataset, config, min_scale=0.5):
         return dataset  
     
     # caption
-    elif dataset=='caption_celeba' or dataset=='caption_celeba_dialog' or dataset=='caption_face2text':
+    elif dataset=='caption_celeba' or dataset=='caption_celeba_text' or dataset=='caption_face2text':
         train_dataset = dataset_caption_train(transform_train, 
                                             config['image_root'], 
                                             config['ann_root'], 
                                             prompt=config['prompt'])
-
 
         val_dataset = dataset_caption_eval(transform_test, 
                                             config['image_root'], 
@@ -63,23 +60,29 @@ def create_dataset(dataset, config, min_scale=0.5):
         return test_dataset
 
 
+
     # Retrieval 
     elif dataset=='retrieval_celeba' or dataset=='retrieval_celeba_dialog' or dataset=='retrieval_face2text':  
-        train_dataset = dataset_retrieval_train(transform_train, 
-                                            config['image_root'], 
-                                            config['ann_root'])
+        train_dataset = dataset_retrieval_train(transform = transform_train, 
+                                            image_root = config['image_root'], 
+                                            ann_root = config['ann_root'], 
+                                            dataset = dataset)
 
-        val_dataset = dataset_retrieval_eval(transform_test, 
-                                            config['image_root'], 
-                                            config['ann_root'], 'val')
-        
+        val_dataset = dataset_retrieval_eval(transform = transform_test, 
+                                            image_root = config['image_root'], 
+                                            ann_root = config['ann_root'], 
+                                            dataset = dataset, 
+                                            split = 'val')
 
-        test_dataset = dataset_retrieval_eval(transform_test, 
-                                            config['image_root'], 
-                                            config['ann_root'], 'test')   
+        test_dataset = dataset_retrieval_eval(transform = transform_test, 
+                                            image_root = config['image_root'], 
+                                            ann_root = config['ann_root'], 
+                                            dataset = dataset,  
+                                            split = 'test')   
         
         return train_dataset, val_dataset, test_dataset
     
+
     elif dataset=='retrieval_benchmark':   
         test_dataset = benchmark_retrieval_eval(transform_test, 
                                             config['image_root'], 

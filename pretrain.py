@@ -82,7 +82,7 @@ def main(args, config):
 
     print("Creating model")
     model = flip_pretrain(image_size=config['image_size'], 
-                            vit=config['vit'], 
+                            img_encoder=config['img_encoder'], 
                             queue_size=config['queue_size'])
 
     model = model.to(device)   

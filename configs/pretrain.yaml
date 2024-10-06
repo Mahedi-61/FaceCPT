@@ -1,7 +1,7 @@
-ann_root: '../FaceCPT/datasets/flip/annotation/'
-image_root: '../FaceCPT/datasets/flip/images/' 
+ann_root: './datasets/flip/annotation/'
+image_root: './datasets/flip/images/' 
 
-vit: 'arcface'
+img_encoder: 'arcface'
 image_size: 112
 embed_dim: 256
 batch_size: 64 #should be divided by 65536

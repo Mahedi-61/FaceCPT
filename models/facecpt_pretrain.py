@@ -16,7 +16,7 @@ class Pretrain(nn.Module):
     def __init__(self,                 
                  encoder_config = 'configs/bert_config.json',  
                  image_size = 112,
-                 vit = 'arcface',                
+                 img_encoder = 'arcface',                
                  embed_dim = 256,     
                  queue_size = 65536,
                  momentum = 0.995,
@@ -27,7 +27,7 @@ class Pretrain(nn.Module):
         self.visual_encoder = iresnet50()
         vision_width = 768
         
-        if vit=='arcface':
+        if img_encoder=='arcface':
             checkpoint = torch.load("weights/arcface_ir50_ms1mv3.pth", 
                             map_location=torch.device('cpu'), weights_only=True)
             msg = self.visual_encoder.load_state_dict(checkpoint, strict=False)

@@ -1,11 +1,9 @@
-image_root: '../FaceCPT/datasets/celeba/images/'
-ann_root: '../FaceCPT/datasets/celeba/annotation'
+image_root: './datasets/celeba/images/'
+ann_root: './datasets/celeba/annotation'
 dataset: 'celeba'
 
-# set pretrained as a file path or an url
 pretrained: 'checkpoint/cp_pretrain_flip_02.pth' 
-# size of vit model; base or large
-vit: 'arcface'
+img_encoder: 'arcface'
 batch_size: 64
 init_lr: 3e-5 #1e-5
 

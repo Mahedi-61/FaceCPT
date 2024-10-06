@@ -5,8 +5,19 @@ from torch.utils.data import Dataset
 from PIL import Image
 from data.utils import pre_caption
 
+def get_max_words(dataset):
+    if dataset == 'retrieval_celeba':
+        return 40
+
+    elif dataset == 'retrieval_celeba_dialog':
+        return 40
+        
+    elif dataset == 'retrieval_face2text':
+        return 60
+
+
 class dataset_retrieval_train(Dataset):
-    def __init__(self, transform, image_root, ann_root, max_words=40, prompt=''):        
+    def __init__(self, transform, image_root, ann_root, dataset):        
        
         filename = 'train.json'        
         self.annotation = json.load(open(os.path.join(ann_root, filename),'r'))
@@ -14,8 +25,7 @@ class dataset_retrieval_train(Dataset):
 
         self.transform = transform
         self.image_root = image_root
-        self.max_words = max_words      
-        self.prompt = prompt
+        self.max_words = get_max_words(dataset)      
         self.img_ids = {}  
         n = 0
         for ann in self.annotation:
@@ -33,17 +43,18 @@ class dataset_retrieval_train(Dataset):
         image = Image.open(image_path).convert('RGB')   
         image = self.transform(image)
         
-        caption = self.prompt + pre_caption(ann['caption'], self.max_words) 
+        caption = pre_caption(ann['caption'], self.max_words) 
         return image, caption, self.img_ids[ann['image_id']] 
     
     
 class dataset_retrieval_eval(Dataset):
-    def __init__(self, transform, image_root, ann_root, split, max_words=40):  
+    def __init__(self, transform, image_root, ann_root, dataset, split):  
 
-        filenames = {'val':'val.json', 'test':'test.json'} 
+        filenames = {'val':'val_retrieval.json', 'test':'test_retrieval.json'} 
         self.annotation = json.load(open(os.path.join(ann_root, filenames[split]),'r'))
         print("loading josn file: ", os.path.join(ann_root, filenames[split]))  
 
+        max_words = get_max_words(dataset)
         self.transform = transform
         self.image_root = image_root
         self.text = []
@@ -56,7 +67,7 @@ class dataset_retrieval_eval(Dataset):
             self.image.append(ann['image'])
             self.img2txt[img_id] = []
             
-            for i, caption in enumerate(ann['caption'][:2]): #selecting only first two samples
+            for i, caption in enumerate(ann['caption'][:2]): 
                 self.text.append(pre_caption(caption, max_words))
                 self.img2txt[img_id].append(txt_id)
                 self.txt2img[txt_id] = img_id
