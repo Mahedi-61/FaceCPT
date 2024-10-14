@@ -1,7 +1,7 @@
 ann_root: './datasets/flip/annotation/'
 image_root: './datasets/flip/images/' 
 
-img_encoder: 'arcface'
+img_encoder: 'arcface_50'
 image_size: 112
 embed_dim: 256
 batch_size: 64 #should be divided by 65536
@@ -13,9 +13,9 @@ momentum: 0.995
 alpha: 0.4
 
 weight_decay: 0.05
-init_lr: 3e-5 #3e-4 (blip), 3e-5 (flip)
+init_lr: 1e-5 #3e-4 (blip), 3e-5 (flip)
 min_lr: 1e-6
 warmup_lr: 1e-6
 lr_decay_rate: 0.9
-max_epoch: 3 #20
-warmup_steps: 8000 #20,000 (flip)
+max_epoch: 8
+warmup_steps: 15000 #(flip)

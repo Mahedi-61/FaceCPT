@@ -18,7 +18,7 @@ def create_dataset(dataset, config, min_scale=0.5):
             transforms.RandomHorizontalFlip(),
             RandomAugment(2, 5, isPIL=True, 
                 augs=['Identity', 'Brightness','Sharpness','Equalize',
-                    'ShearX', 'ShearY', 'TranslateX', 'TranslateY', 'Rotate']),   
+                      'TranslateX', 'TranslateY', 'Rotate']),   
             transforms.ToTensor(),
             normalize,
         ])        
@@ -29,26 +29,30 @@ def create_dataset(dataset, config, min_scale=0.5):
         ])  
         
     if dataset=='pretrain':
-        dataset = flip_pretrain(config['ann_root'], 
-                                   config['image_root'],
-                                   transform_train)   
+        dataset = flip_pretrain(ann_root = config['ann_root'], 
+                                image_root = config['image_root'],
+                                max_words = 55,
+                                transform = transform_train) 
+
         return dataset  
     
     # caption
     elif dataset=='caption_celeba' or dataset=='caption_celeba_text' or dataset=='caption_face2text':
-        train_dataset = dataset_caption_train(transform_train, 
-                                            config['image_root'], 
-                                            config['ann_root'], 
+        train_dataset = dataset_caption_train(transform = transform_train, 
+                                            image_root = config['image_root'], 
+                                            ann_root = config['ann_root'], 
+                                            dataset = dataset,
                                             prompt=config['prompt'])
 
         val_dataset = dataset_caption_eval(transform_test, 
-                                            config['image_root'], 
-                                            config['ann_root'], 'val')
-        
+                                            image_root = config['image_root'], 
+                                            ann_root = config['ann_root'], 
+                                            split = 'val')
 
         test_dataset = dataset_caption_eval(transform_test, 
-                                            config['image_root'], 
-                                            config['ann_root'], 'test')   
+                                            image_root = config['image_root'], 
+                                            ann_root = config['ann_root'], 
+                                            split = 'test')   
         
         return train_dataset, val_dataset, test_dataset
 

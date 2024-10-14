@@ -1,21 +1,21 @@
 image_root: './datasets/face2text/images/'
 ann_root: './datasets/face2text/annotation'
 dataset: 'face2text'
-pretrained: 'output/retrieval_face2text/cp_retrieval_face2text_arc18.pth' #'output/pretrain/cp_pretrain_flip_02.pth'
+pretrained: 'output/pretrain/cp_pretrain_flip_04.pth'
 
-img_encoder: 'arcface'
-batch_size_train: 64
-batch_size_test: 64
-init_lr: 2e-5 #1e-5
+img_encoder: 'arcface_50'
+batch_size_train: 128
+batch_size_test: 128
+init_lr: 1e-5 
 max_length: 65
 
 image_size: 112
 queue_size: 65536 
 alpha: 0.4
-k_test: 16
+k_test: 10   #12 best
 negative_all_rank: True
 
 # optimizer
-weight_decay: 0.02
+weight_decay: 0.05
 min_lr: 1e-6
-max_epoch: 15
+max_epoch: 40 #30

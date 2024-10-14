@@ -67,7 +67,7 @@ class dataset_retrieval_eval(Dataset):
             self.image.append(ann['image'])
             self.img2txt[img_id] = []
             
-            for i, caption in enumerate(ann['caption'][:2]): 
+            for i, caption in enumerate(ann['caption']): 
                 self.text.append(pre_caption(caption, max_words))
                 self.img2txt[img_id].append(txt_id)
                 self.txt2img[txt_id] = img_id

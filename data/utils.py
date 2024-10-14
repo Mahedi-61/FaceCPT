@@ -59,7 +59,6 @@ def cap_metrics(gen_caption, ref_caption):
 
     keys = list(gen_caption.keys())
 
-    #for key in loop:
     gcap = [gen_caption[key] for key in keys]
     rcap = [ref_caption[key] for key in keys]
     b1 = bleu.compute(predictions = gcap, references= rcap, max_order=1)
@@ -70,21 +69,10 @@ def cap_metrics(gen_caption, ref_caption):
     rL = rouge.compute(predictions = gcap, references= rcap)
     m  = meteor.compute(predictions = gcap, references= rcap)
 
-    # upading metrics for each sample
     meter.update(b1["bleu"], b2["bleu"],   b3["bleu"], 
                  b4["bleu"], rL["rougeL"], m["meteor"])
 
     meter.average()
-    """
-    print("BLEU@1: ", meter.belu_1)
-    print("BLEU@2: ", meter.belu_2)
-    print("BLEU@3: ", meter.belu_3)
-
-    print("BLEU@4: ", meter.belu_4)
-    print("ROUGE_L: ", meter.rougeL)
-    print("METEOR: ", meter.meteor)
-    """
-
     return {"BLEU@4" : meter.belu_4, 
             "rougeL" : meter.rougeL, 
             "METEOR" : meter.meteor}

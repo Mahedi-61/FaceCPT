@@ -5,15 +5,26 @@ from torch.utils.data import Dataset
 from PIL import Image
 from data.utils import pre_caption
 
+def get_max_words(dataset):
+    if dataset == 'caption_celeba':
+        return 40
+
+    elif dataset == 'caption_celeba_text':
+        return 35
+        
+    elif dataset == 'caption_face2text':
+        return 60
+
+
 class dataset_caption_train(Dataset):
-    def __init__(self, transform, image_root, ann_root, max_words=50, prompt=''):        
+    def __init__(self, transform, image_root, ann_root, dataset, prompt=''):        
        
         filename = 'train.json'
         print("loading josn file: ", os.path.join(ann_root, filename))        
         self.annotation = json.load(open(os.path.join(ann_root, filename),'r'))
         self.transform = transform
         self.image_root = image_root
-        self.max_words = max_words      
+        self.max_words = get_max_words(dataset)      
         self.prompt = prompt
         self.img_ids = {}  
         n = 0

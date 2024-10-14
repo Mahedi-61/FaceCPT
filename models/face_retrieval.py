@@ -8,13 +8,13 @@ from torch import nn
 import torch.nn.functional as F
 
 from models.facecpt import load_checkpoint
-from models.iresnet import iresnet50, iresnet100
+from models.iresnet import get_image_encoder
 
 class Retrieval(nn.Module):
     def __init__(self,                 
                  config = 'configs/bert_config.json',  
                  image_size = 112,
-                 img_encoder = 'arcface',                   
+                 img_encoder = 'arcface_50',                   
                  embed_dim = 256,     
                  queue_size = 65536, 
                  momentum = 0.995,
@@ -22,15 +22,7 @@ class Retrieval(nn.Module):
                  ):
               
         super().__init__()
-        self.visual_encoder = iresnet50()
-        vision_width = 768
-        
-        if img_encoder=='arcface':
-            checkpoint = torch.load("weights/arcface_ir50_ms1mv3.pth", 
-                            map_location=torch.device('cpu'), weights_only=True)
-            msg = self.visual_encoder.load_state_dict(checkpoint, strict=False)
-            print("missing keys in saved_checkpoint")
-            print(msg)
+        self.visual_encoder, vision_width = get_image_encoder(img_encoder)
         
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')  
         en_config = BertConfig.from_json_file(config)
@@ -43,8 +35,7 @@ class Retrieval(nn.Module):
         self.itm_head = nn.Linear(text_width, 2) 
         
         # create momentum encoders  
-        self.visual_encoder_m = iresnet50()
-        vision_width = 768            
+        self.visual_encoder_m, vision_width = get_image_encoder(img_encoder)
         self.vision_proj_m = nn.Linear(vision_width, embed_dim)
         self.text_encoder_m = BertForMaskedLM(config=en_config)
         self.text_proj_m = nn.Linear(text_width, embed_dim)
@@ -127,7 +118,8 @@ class Retrieval(nn.Module):
         sim_t2i = text_feat @ image_feat_m_all / self.temp 
                              
         loss_i2t = -torch.sum(F.log_softmax(sim_i2t, dim=1)*sim_i2t_targets,dim=1).mean()
-        loss_t2i = -torch.sum(F.log_softmax(sim_t2i, dim=1)*sim_t2i_targets,dim=1).mean() 
+        loss_t2i = -torch.sum(F.log_softmax(sim_t2i, dim=1)*sim_t2i_targets,dim=1).mean()
+
 
         loss_ita = (loss_i2t + loss_t2i) / 2
         

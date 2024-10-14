@@ -9,13 +9,13 @@ Image.MAX_IMAGE_PIXELS = None
 from data.utils import pre_caption
 
 class flip_pretrain(Dataset):
-    def __init__(self, ann_root, image_root, transform): 
+    def __init__(self, ann_root, image_root, max_words, transform): 
         ann_files = sorted(os.listdir(ann_root), 
                         key = lambda x: int(x.split("_")[-1].rstrip(".json")))
 
         self.annotation = []
         self.image_root = image_root
-
+        self.max_words = max_words
         for f in ann_files:
             print('loading ' + f)
             ann = json.load(open(os.path.join(ann_root, f), 'r'))
@@ -29,8 +29,7 @@ class flip_pretrain(Dataset):
         ann = self.annotation[index] 
         image = Image.open(os.path.join(self.image_root, ann['image'])).convert('RGB')   
         image = self.transform(image)
-        caption = pre_caption(ann['caption'][0], 50) 
-        
+        caption = pre_caption(ann['caption'][0],  self.max_words) 
         return image, caption
 
 
@@ -68,7 +67,7 @@ class flip_caption_eval(Dataset):
     def __init__(self, transform, image_root, ann_root, split):  
         filenames = {'val':'flip_align_split_00030.json', 'test':'flip_align_split_00031.json'}        
         self.annotation = json.load(open(os.path.join(ann_root,filenames[split]),'r'))
-        self.annotation = self.annotation ##change it ************************************** [:5000]
+        self.annotation = self.annotation 
         self.transform = transform
         self.image_root = image_root
         
@@ -87,40 +86,3 @@ class flip_caption_eval(Dataset):
         print(ann['image'])
         print(img_id)
         return image, int(img_id)   
-    
-    
-class flip_retrieval_eval(Dataset):
-    def __init__(self, transform, image_root, ann_root, split, max_words=30):  
-
-        filenames = {'val':'flip_align_split_00030.json','test':'flip_align_split_00031.json'}
-                
-        self.annotation = json.load(open(os.path.join(ann_root, filenames[split]),'r'))
-        self.transform = transform
-        self.image_root = image_root
-
-        self.text = []
-        self.image = []
-        self.txt2img = {}
-        self.img2txt = {}
-        
-        txt_id = 0
-        for img_id, ann in enumerate(self.annotation):
-            self.image.append(ann['image'])
-            self.img2txt[img_id] = []
-            
-            for i, caption in enumerate(ann['caption']):
-                self.text.append(pre_caption(caption, max_words))
-                self.img2txt[img_id].append(txt_id)
-                self.txt2img[txt_id] = img_id
-                txt_id += 1
-                                    
-    def __len__(self):
-        return len(self.annotation)
-    
-    def __getitem__(self, index):    
-        image_path = os.path.join(self.image_root, self.annotation[index]['image'])        
-        image = Image.open(image_path).convert('RGB')    
-        image = self.transform(image)  
-
-        return image, index
-    

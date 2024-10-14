@@ -2,19 +2,19 @@ image_root: './datasets/celeba/images/'
 ann_root: './datasets/celeba/annotation'
 dataset: 'celeba'
 
-pretrained: 'checkpoint/cp_pretrain_flip_02.pth' 
-img_encoder: 'arcface'
+pretrained: 'output/pretrain/cp_pretrain_flip_04.pth' 
+img_encoder: 'arcface_50'
 batch_size: 64
-init_lr: 3e-5 #1e-5
+init_lr: 7e-6 #1e-5
 
 # generation configs
 image_size: 112
 max_length: 40  
 min_length: 15
-num_beams: 3
+num_beams: 5
 prompt: 'a photo of a person where '
 
 # optimizer
 weight_decay: 0.05
-min_lr: 0
-max_epoch: 5
+min_lr: 1e-6
+max_epoch: 8

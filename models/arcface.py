@@ -204,8 +204,8 @@ class AttributeModel(nn.Module):
         super(AttributeModel, self).__init__()
 
         self.dropout = nn.Dropout(p=0.15, inplace=False)
-        if args.architecture == "ir_50":
-            self.final_layer = nn.Linear(in_features = 512, 
+        if args.model_type == "arcface_50":
+            self.final_layer = nn.Linear(in_features = 768, 
                                          out_features = num_attributes, 
                                          bias=True)
 

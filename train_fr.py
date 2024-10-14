@@ -9,14 +9,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import Parameter
 from tqdm import tqdm 
-#ROOT_PATH = osp.abspath(osp.join(osp.dirname(osp.abspath(__file__)),  ".."))
-#sys.path.insert(0, ROOT_PATH)
 
 from types import SimpleNamespace
 from data.fr_attr_dataset import FrAttrDataset, FrTestDataset
 from data.utils import *
 from data.modules import calculate_acc
 from models import arcface
+from models.iresnet import get_image_encoder
 from models import focal_loss 
 my_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -136,21 +135,14 @@ class Trainer:
 
     def build_models(self):
         self.attr_model = arcface.AttributeModel(num_attributes=40, args=args)
-        self.metric_fc = ArcMarginProduct(512, 
+        self.base_model, img_width = get_image_encoder(self.model_type)
+
+        self.metric_fc = ArcMarginProduct(768, 
                                         self.args.num_classes, 
                                         s=64.0, 
                                         m=0.5, 
                                         easy_margin=False).to(my_device)
 
-        if args.architecture == "ir_50":
-            self.base_model = arcface.iresnet50(pretrained=False, progress=True)
-            pretrained_weight_path = args.weights_arcface_50
-
-
-        elif args.architecture == "ir_101":
-            self.base_model = arcface.iresnet101(pretrained=False, progress=True)
-            pretrained_weight_path = args.weights_arcface_101
-    
         if args.checkpoint_path:
             print("loading saved checkpoint: ", args.checkpoint_path) 
             state_dict = torch.load(args.checkpoint_path,  weights_only=True)
@@ -159,18 +151,18 @@ class Trainer:
             self.metric_fc.load_state_dict(state_dict['fr_model'])
 
         else:
-            print("loading pretrained FaceCPT model: ", pretrained_weight_path)
-            checkpoint = torch.load(pretrained_weight_path, map_location="cpu", weights_only=False)
-
+            print("loading pretrained FaceCPT model: ", args.pretrained)
+            checkpoint = torch.load(args.pretrained, map_location="cpu", weights_only=False)
             cp_dict = checkpoint['model']
-            state_dict = {}
 
+            state_dict = {}
             for key in cp_dict.keys():
                 if key.startswith("visual_encoder."):
                     state_dict[key.replace("visual_encoder.", "")] = cp_dict[key]
-
+            
+            assert list(self.base_model.state_dict().keys()) == list(state_dict.keys()); "Keys Doesn't Match!!"
             msg = self.base_model.load_state_dict(state_dict, strict=False)
-            print("missing keys: ", msg)
+            #print("missing keys: ", msg)
     
         self.base_model.to(my_device)
         self.attr_model.to(my_device)
@@ -197,11 +189,11 @@ class Trainer:
                 pair_label = pair_label.to(my_device)
             
                 # get global and local image features from COTS model
-                global_feat1,  _ = self.base_model(img1)
-                global_feat2,  _ = self.base_model(img2)
+                global_feat1  = self.base_model(img1)
+                global_feat2  = self.base_model(img2)
 
-                global_feat1_h,  _ = self.base_model(img1_h)
-                global_feat2_h,  _ = self.base_model(img2_h)
+                global_feat1_h  = self.base_model(img1_h)
+                global_feat2_h  = self.base_model(img2_h)
 
                 gf1 = torch.cat((global_feat1, global_feat1_h), dim=1)
                 gf2 = torch.cat((global_feat2, global_feat2_h), dim=1)
@@ -220,7 +212,7 @@ class Trainer:
 
     def get_optimizer(self):
         params_model = [{"params": self.base_model.parameters(), 
-                         "lr" : 0.002, 
+                         "lr" : 0.009, 
                          "weight_decay" : 0.0005}]
                 
         params_attr = [{"params": self.attr_model.parameters(), 
@@ -264,8 +256,7 @@ class Trainer:
             attr_vec = attr_vec.to(my_device)
             cls_id = cls_id.to(my_device)
 
-            # get global and local image features
-            gl_feats, lc_feats = self.base_model(imgs) 
+            gl_feats = self.base_model(imgs) 
             pred = torch.nn.functional.sigmoid(self.attr_model(gl_feats))
 
             # converting in a 1D vector
@@ -303,7 +294,7 @@ class Trainer:
             attr_vec = attr_vec.to(my_device)
             label = label.to(my_device)
         
-            gl_feats, lc_feats = self.base_model(imgs) 
+            gl_feats = self.base_model(imgs) 
             pred_attrs = self.attr_model(gl_feats)
             output = self.metric_fc(gl_feats, label)
 
@@ -351,7 +342,7 @@ class Trainer:
             
             if epoch  > self.args.valid_interval:
                 print("\nLet's validate the model")
-                acc = self.evaluate_attr(eval_dl = self.valid_dl)
+                #acc = self.evaluate_attr(eval_dl = self.valid_dl)
 
                 print("Let's evaluate FR performance")
                 self.evaluate_fr()
@@ -372,13 +363,12 @@ def parse_arguments(argv):
     parser.add_argument('--evaluate',       dest="train",    help='evaluate the pretrained model',action='store_false')
     parser.set_defaults(train = True)
 
-    parser.add_argument('--dataset',        type=str,   default="celeba_dialog",    help='celeba|lfw|celeba_dialog')
+    parser.add_argument('--dataset',        type=str,   default="celeba_dialog",    help='lfw | celeba_dialog')
     parser.add_argument('--batch_size',     type=int,   default=128,         help='batch size')
     parser.add_argument('--epochs',         type=int,   default=15,          help='Number of epochs')
 
-    parser.add_argument('--architecture',   type=str,   default="ir_50",     help='iResNet Architecture 18|50|101')
-    parser.add_argument('--model_type',     type=str,   default="arcface",   help='architecture of the model: arcface | cosface')
-    parser.add_argument('--checkpoint_path',type=str,   default="checkpoint/fr_attr/fr_attr_arcface_14.pth",    help='path of the saved cp')
+    parser.add_argument('--model_type',     type=str,   default="arcface_50",   help='architecture of the model: arcface | cosface')
+    parser.add_argument('--checkpoint_path',type=str,   default="",    help='path of the saved cp')
     parser.add_argument('--freeze',         type=int,   default=6,           help='Number of epoch pretrained model frezees')
 
     parser.add_argument('--valid_interval',     type=int,   default=5,       help='valid (epochs)')
@@ -389,19 +379,15 @@ lfw_cfg = SimpleNamespace(
     num_classes = 4500
 )
 
-celeba_cfg = SimpleNamespace(
-    num_classes = 4500
-)
-
 celeba_dialog_cfg = SimpleNamespace(
     num_classes = 8211
 )
 
 
 setup_cfg = SimpleNamespace(
-    weights_arcface_18 = "./weights/arcface_ir18_ms1mv3.pth",
     weights_arcface_50 = "./weights/arcface_ir50_ms1mv3.pth", 
     weights_arcface_101 = "./weights/arcface_ir101_ms1mv3.pth",  
+    pretrained = "output/pretrain/cp_pretrain_flip_04.pth", 
 
     metric = "arc_margin", 
     loss = "focal_loss", 
@@ -415,16 +401,12 @@ setup_cfg = SimpleNamespace(
 if __name__ == "__main__":
     c_args = parse_arguments(sys.argv[1:])
 
-    if c_args.dataset == "celeba":
-        args = SimpleNamespace(**c_args.__dict__, **setup_cfg.__dict__, **celeba_cfg.__dict__) 
-    
-    elif c_args.dataset == "celeba_dialog":
+    if c_args.dataset == "celeba_dialog":
         args = SimpleNamespace(**c_args.__dict__, **setup_cfg.__dict__, **celeba_dialog_cfg.__dict__)
 
     elif c_args.dataset == "lfw":
         args = SimpleNamespace(**c_args.__dict__, **setup_cfg.__dict__, **lfw_cfg.__dict__)
     
-
     # set seed
     random.seed(args.manual_seed)
     np.random.seed(args.manual_seed)
@@ -444,10 +426,9 @@ if __name__ == "__main__":
         t.train()
     elif args.train == False:
         t.evaluate_attr(eval_dl = t.test_dl)
-        
 
 
 """
 RUN the code
-python3 train_fr_attribute.py  --architecture ir_50 --dataset celeba_dialog --evaluate
+python3 train_fr_attribute.py  --dataset celeba_dialog --evaluate
 """

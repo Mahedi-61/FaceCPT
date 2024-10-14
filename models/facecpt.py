@@ -9,82 +9,19 @@ import torch.nn.functional as F
 
 import os
 from urllib.parse import urlparse
-from models.iresnet import iresnet50, iresnet100
-
-
-class BLIP_Base(nn.Module):
-    def __init__(self,                 
-                 med_config = 'configs/med_config.json',  
-                 image_size = 112,
-                 img_encoder = 'arcface',            
-                 ):
-           
-        super().__init__()
-        self.visual_encoder = iresnet50()
-        vision_width = 768
-        
-        if img_encoder =='arcface':
-            checkpoint = torch.load("weights/arcface_ir50_ms1mv3.pth", 
-                            map_location=torch.device('cpu'), weights_only=True)
-            msg = self.visual_encoder.load_state_dict(checkpoint, strict=False)
-            print("missing keys in saved_checkpoint")
-            print(msg)
-
-        self.dec_tokenizer = init_dec_tokenizer()   
-        med_config = BertConfig.from_json_file(med_config)
-        med_config.encoder_width = vision_width
-        self.text_encoder = BertModel(config=med_config, add_pooling_layer=False)  
-
-        
-    def forward(self, image, caption, mode):
-        
-        assert mode in ['image', 'text', 'multimodal'], "mode parameter must be image, text, or multimodal"
-        text = self.dec_tokenizer(caption, return_tensors="pt").to(image.device) 
-        
-        if mode=='image':    
-            # return image features
-            image_embeds = self.visual_encoder(image)             
-            return image_embeds
-        
-        elif mode=='text':
-            # return text features
-            text_output = self.text_encoder(text.input_ids, attention_mask = text.attention_mask,                      
-                                            return_dict = True, mode = 'text')  
-            return text_output.last_hidden_state
-        
-        elif mode=='multimodal':
-            # return multimodel features
-            image_embeds = self.visual_encoder(image)    
-            image_atts = torch.ones(image_embeds.size()[:-1],dtype=torch.long).to(image.device)      
-            
-            text.input_ids[:,0] = self.dec_tokenizer.enc_token_id
-            output = self.text_encoder(text.input_ids,
-                                       attention_mask = text.attention_mask,
-                                       encoder_hidden_states = image_embeds,
-                                       encoder_attention_mask = image_atts,      
-                                       return_dict = True,
-                                      )              
-            return output.last_hidden_state
-
+from models.iresnet import get_image_encoder
 
 class FaceCPT_Decoder(nn.Module):
     def __init__(self,                 
                  config = 'configs/decoder_config.json',  
                  image_size = 112,
                  img_encoder = 'arcface',
+                 max_length = 45,
                  prompt = 'a photo of a person where ',
                  ):
            
         super().__init__()
-        self.visual_encoder = iresnet50()
-        vision_width = 768
-
-        if img_encoder == 'arcface':
-            checkpoint = torch.load("weights/arcface_ir50_ms1mv3.pth", 
-                            map_location=torch.device('cpu'), weights_only=True)
-            msg = self.visual_encoder.load_state_dict(checkpoint, strict=False)
-            print("missing keys in saved_checkpoint")
-            print(msg)
+        self.visual_encoder, vision_width = get_image_encoder(img_encoder) 
 
         self.dec_tokenizer = init_dec_tokenizer()   
         decoder_config = BertConfig.from_json_file(config)
@@ -92,6 +29,7 @@ class FaceCPT_Decoder(nn.Module):
         self.text_decoder = BertLMHeadModel(config=decoder_config)
         self.text_decoder.resize_token_embeddings(len(self.dec_tokenizer))     
         
+        self.max_length = max_length
         self.prompt = prompt
         self.prompt_length = len(self.dec_tokenizer(self.prompt).input_ids)-1
 
@@ -104,7 +42,7 @@ class FaceCPT_Decoder(nn.Module):
         text = self.dec_tokenizer(caption, 
                               padding='longest', 
                               truncation=True, 
-                              max_length=40, 
+                              max_length=self.max_length, 
                               return_tensors="pt").to(image.device) 
         
         decoder_input_ids = text.input_ids      
@@ -127,7 +65,7 @@ class FaceCPT_Decoder(nn.Module):
                  sample=False, 
                  num_beams=3, 
                  max_length=40, 
-                 min_length=10, 
+                 min_length=20, 
                  top_p=0.9, 
                  repetition_penalty=1.0):
         
@@ -174,19 +112,12 @@ class FaceCPT_Decoder(nn.Module):
         return captions
 
 
-def facecpt_decoder(pretrained='',**kwargs):
+def facecpt_caption(pretrained='',**kwargs):
     model = FaceCPT_Decoder(**kwargs)
     if pretrained:
         model, msg = load_checkpoint(model, pretrained)
-        #assert(len(msg.missing_keys) == 0)
-    return model    
-    
-def blip_feature_extractor(pretrained='',**kwargs):
-    model = BLIP_Base(**kwargs)
-    if pretrained:
-        model, msg = load_checkpoint(model,pretrained)
         assert(len(msg.missing_keys) == 0)
-    return model        
+    return model    
 
 
 def init_dec_tokenizer():
@@ -196,11 +127,7 @@ def init_dec_tokenizer():
     tokenizer.enc_token_id = tokenizer.additional_special_tokens_ids[0]  
     return tokenizer
     
-"""
-def is_url(url_or_filename):
-    parsed = urlparse(url_or_filename)
-    return parsed.scheme in ("http", "https")
-"""
+
 
 def load_checkpoint(model, filename):
     if os.path.isfile(filename):        

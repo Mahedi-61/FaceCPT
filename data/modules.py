@@ -101,13 +101,12 @@ def calculate_acc(preds, labels, low_thresh=-1.0, interval=0.005):
     thresholds = np.arange(low_thresh, 1.0, interval)
     predicts = np.array(list(map(lambda line: line.strip('\n').split(), predicts)))
 
-    print(len(predicts))
     print("starting fold ....")
     for idx, (train, test) in enumerate(folds):
         best_thresh = find_best_threshold(thresholds, predicts[train])
         accuracy.append(eval_acc(best_thresh, predicts[test]))
         thd.append(best_thresh)
-        print("finding fold: ", idx)
+        #print("finding fold: ", idx)
 
     print('ACC={:.4f} std={:.4f} thd={:.4f}'.format(np.mean(accuracy), 
                                 np.std(accuracy), np.mean(thd)))

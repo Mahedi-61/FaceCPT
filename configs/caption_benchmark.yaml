@@ -2,12 +2,12 @@ image_root: ''
 ann_root: '' 
 
 pretrained: 'checkpoint/cp_caption_celeba.pth' 
-img_encoder: 'arcface'
+img_encoder: 'arcface_50'
 batch_size: 32
 
 # generation configs
 image_size: 112
 max_length: 40  
-min_length: 18
-num_beams: 3
+min_length: 15
+num_beams: 5
 prompt: 'a photo of a person where '

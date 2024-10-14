@@ -107,8 +107,8 @@ def evaluation(model, data_loader, device, config):
         text_atts.append(text_input.attention_mask)
     
     text_embeds = torch.cat(text_embeds, dim=0)
-    text_ids = torch.cat(text_ids,dim=0)
-    text_atts = torch.cat(text_atts,dim=0)
+    text_ids = torch.cat(text_ids, dim=0)
+    text_atts = torch.cat(text_atts, dim=0)
     
     image_feats = []
     image_embeds = []
@@ -126,7 +126,6 @@ def evaluation(model, data_loader, device, config):
     image_embeds = torch.cat(image_embeds,dim=0)
     
     sims_matrix = image_embeds @ text_embeds.t()
-
     num_tasks = utils.get_world_size()
     rank = utils.get_rank() 
 
@@ -250,13 +249,17 @@ def main(args, config):
                                   lr=config['init_lr'], 
                                   weight_decay=config['weight_decay']) 
  
-    for epoch in range(0, config['max_epoch']):    
+    for epoch in range(0, config['max_epoch']):
+        ########################### Delete #################################
+        best = 0    
+        val_loader = test_loader
+        ####################################################################
+
         if args.distributed:
             train_loader.sampler.set_epoch(epoch)
             
         cosine_lr_schedule(optimizer, epoch, config['max_epoch'], config['init_lr'], config['min_lr'])            
         train_stats = train(model, train_loader, optimizer, epoch, device, config)  
-            
         score_val_t2i = evaluation(model_without_ddp, val_loader, device, config) 
 
         if utils.is_main_process():  
@@ -272,7 +275,7 @@ def main(args, config):
                     'config': config,
                     'epoch': epoch,
                 }
-                torch.save(save_obj, os.path.join(args.output_dir, 'cp_retrieval_face2text_arc18.pth'))  
+                torch.save(save_obj, os.path.join(args.output_dir, f'cp_retrieval_celeba_arc18_{epoch}.pth'))  
                 best = val_result['txt2img_r_mean']        
                 best_epoch = epoch  
 
@@ -294,7 +297,7 @@ def main(args, config):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()     
-    parser.add_argument('--dataset', default='face2text')         
+    parser.add_argument('--dataset', default='celeba')         
     parser.add_argument('--evaluate', action='store_true')
     parser.add_argument('--device', default='cuda')
     parser.add_argument('--seed', default=42, type=int)
@@ -315,6 +318,6 @@ if __name__ == '__main__':
     
     main(args, config)
     """
-    python3 -m torch.distributed.run --nproc-per-node=2 train_retrieval.py --dataset face2text --evaluate 
+    python3 -m torch.distributed.run --nproc-per-node=2 train_retrieval.py --dataset celeba --evaluate 
     Put gradeint update on ArcFace model = False
     """

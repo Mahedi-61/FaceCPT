@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
 __all__ = ['iresnet18', 'iresnet34', 'iresnet50', 'iresnet100', 'iresnet200']
@@ -110,13 +111,12 @@ class IResNet(nn.Module):
 
         ############# extra layers for 768-D projection
         self.bn512 = nn.BatchNorm1d(512, eps=1e-05,)
-        self.prelu512 = nn.PReLU()
+        self.prelu768 = nn.PReLU() #768
         nn.init.constant_(self.bn512.weight, 1)
 
-        self.fc768 = nn.Linear(512, 768)
+        self.fc768 = nn.Linear(768, 768)
         self.features768 = nn.BatchNorm1d(768, eps=1e-05)
         nn.init.constant_(self.features768.weight, 1.0)
-        self.features768.weight.requires_grad = False 
         #############
 
         for m in self.modules():
@@ -165,6 +165,9 @@ class IResNet(nn.Module):
             x = self.layer1(x)
             x = self.layer2(x)
             x = self.layer3(x)
+            l3 = F.avg_pool2d(x, kernel_size=14)
+            l3 = l3.view(l3.size(0), -1)
+
             x = self.layer4(x)
             x = self.bn2(x)
             x = torch.flatten(x, 1)
@@ -173,7 +176,8 @@ class IResNet(nn.Module):
         x = self.fc(x.float() if self.fp16 else x)
 
         ######## extra code for 768-D projection
-        y = self.prelu512(self.bn512(x))
+        y = torch.cat((self.bn512(x), l3), dim=1)
+        y = self.prelu768(y)
         y = self.fc768(y)
         y = self.features768(y)
         #################################
@@ -214,13 +218,26 @@ def iresnet200(pretrained=False, progress=True, **kwargs):
                     progress, **kwargs)
 
 
+def get_image_encoder(img_encoder):
+    model = iresnet50()
+
+    if img_encoder=='arcface_50':
+        checkpoint = torch.load("weights/arcface_ir50_ms1mv3.pth", 
+                        map_location=torch.device('cpu'), weights_only=True)
+
+    elif img_encoder=='arcface_101':
+        checkpoint = torch.load("weights/arcface_ir101_ms1mv3.pth", 
+                        map_location=torch.device('cpu'), weights_only=True)
+
+    msg = model.load_state_dict(checkpoint, strict=False)
+    #print("missing keys in saved_checkpoint")
+    #print(msg)
+    return model, 768
+
+
 if __name__ == "__main__":
     x = torch.randn((16, 3, 112, 112))
-    net = iresnet18()
-    checkpoint = torch.load("../weights/arcface_ir18_ms1mv3.pth", 
-                            map_location=torch.device('cpu'), weights_only=True)
-    msg = net.load_state_dict(checkpoint, strict=False)
-    y = net(x)
-    print(y.size())
-    y = torch.unsqueeze(y, dim=1)
-    print(y.size())
+    net, width, add_layers = get_image_encoder("arcface_50")
+
+
+

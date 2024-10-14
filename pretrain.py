@@ -14,8 +14,8 @@ import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 from torch.utils.data import DataLoader
+from models.facecpt_pretrain import pretrain
 
-from models.facecpt_pretrain import flip_pretrain
 import utils
 from utils import warmup_lr_schedule, step_lr_schedule
 from data import create_dataset, create_sampler, create_loader
@@ -81,7 +81,7 @@ def main(args, config):
     cudnn.benchmark = True
 
     print("Creating model")
-    model = flip_pretrain(image_size=config['image_size'], 
+    model = pretrain(image_size=config['image_size'], 
                             img_encoder=config['img_encoder'], 
                             queue_size=config['queue_size'])
 
@@ -105,7 +105,6 @@ def main(args, config):
         print('resume checkpoint from %s' % args.checkpoint)
 
     else:
-        # Allah help me
         print("loading previous pre-train models to save computation")
         albef_base = "weights/albef_base.pth"
         cp_albef = torch.load(albef_base, map_location='cpu', weights_only=True)  
@@ -124,7 +123,7 @@ def main(args, config):
 
         msg = model.load_state_dict(decoder_dict, strict=False)    
         print("missing keys in saved facecpt checkpont: ")
-        #print(msg)
+
 
     #### Dataset #### 
     print("Creating dataset")
@@ -149,14 +148,17 @@ def main(args, config):
         model_without_ddp = model.module    
         
     print("Start training")
-    start_time = time.time()   
-    
+    start_time = time.time() 
+
     for epoch in range(start_epoch, config['max_epoch']):        
         step_lr_schedule(optimizer, epoch, 
                         config['init_lr'], 
                         config['min_lr'], 
                         config['lr_decay_rate'])
-                
+
+        print("freezing visual encoder")  
+        utils.freeze_model(model_without_ddp, epoch)
+
         train_stats = train(model, data_loader, optimizer, epoch, device, config) 
 
         if utils.is_main_process():  
@@ -170,7 +172,7 @@ def main(args, config):
                 'epoch': epoch,
             }
             torch.save(save_obj, os.path.join(args.output_dir, 
-                                    'cp_pretrain_flip_%02d.pth'%epoch))  
+                                'cp_pretrain_flip_%02d.pth'%epoch))  
             
             with open(os.path.join(args.output_dir, "log.txt"),"a") as f:
                 f.write(json.dumps(log_stats) + "\n")
@@ -180,7 +182,7 @@ def main(args, config):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
- 
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -207,6 +209,4 @@ if __name__ == '__main__':
 """
 Run this code
 python3 -m torch.distributed.run --nproc-per-node=2 pretrain.py
-Finetuning checklist
-1. Put gradeint update on ArcFace model = True
 """

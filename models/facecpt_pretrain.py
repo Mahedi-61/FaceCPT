@@ -9,14 +9,14 @@ from torch import nn
 import torch.nn.functional as F
 
 from models.facecpt import init_dec_tokenizer
-from models.iresnet import iresnet50, iresnet100
+from models.iresnet import get_image_encoder
 
 
 class Pretrain(nn.Module):
     def __init__(self,                 
                  encoder_config = 'configs/bert_config.json',  
                  image_size = 112,
-                 img_encoder = 'arcface',                
+                 img_encoder = 'arcface_50',                
                  embed_dim = 256,     
                  queue_size = 65536,
                  momentum = 0.995,
@@ -24,17 +24,7 @@ class Pretrain(nn.Module):
                    
         super().__init__()
         
-        self.visual_encoder = iresnet50()
-        vision_width = 768
-        
-        if img_encoder=='arcface':
-            checkpoint = torch.load("weights/arcface_ir50_ms1mv3.pth", 
-                            map_location=torch.device('cpu'), weights_only=True)
-            msg = self.visual_encoder.load_state_dict(checkpoint, strict=False)
-            print("Loading pre-trained arcface model")
-            print("missing keys in saved arcface checkpoint")
-            print(msg)
-    
+        self.visual_encoder, vision_width = get_image_encoder(img_encoder)    
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased') 
         encoder_config = BertConfig.from_json_file(encoder_config)
         encoder_config.encoder_width = vision_width
@@ -55,8 +45,7 @@ class Pretrain(nn.Module):
         self.itm_head = nn.Linear(text_width, 2) 
         
         # create momentum encoders  
-        self.visual_encoder_m = iresnet50()
-        vision_width = 768             
+        self.visual_encoder_m, vision_width = get_image_encoder(img_encoder)             
         self.vision_proj_m = nn.Linear(vision_width, embed_dim)
         self.text_encoder_m = BertForMaskedLM.from_pretrained('bert-base-uncased',
                                                       config=encoder_config,) #add_pooling_layer=False)  
@@ -90,7 +79,7 @@ class Pretrain(nn.Module):
         
     def forward(self, image, caption, alpha):
         with torch.no_grad():
-            self.temp.clamp_(0.001,0.5)
+            self.temp.clamp_(0.001, 0.5)
         
         image_embeds = self.visual_encoder(image).unsqueeze(dim=1)
         image_atts = torch.ones(image_embeds.size()[:-1],dtype=torch.long).to(image.device)        
@@ -144,10 +133,7 @@ class Pretrain(nn.Module):
         self._dequeue_and_enqueue(image_feat_m, text_feat_m)        
 
 
-        ###============== Image-text Matching ===================###
-        #encoder_input_ids = text.input_ids.clone()
-        #encoder_input_ids[:,0] = self.tokenizer.enc_token_id
-        
+        ###============== Image-text Matching ===================###        
         # forward the positve image-text pair
         bs = image.size(0)
         output_pos = self.text_encoder.bert(encoder_embeds = text_embeds, 
@@ -260,7 +246,7 @@ class Pretrain(nn.Module):
         self.queue_ptr[0] = ptr 
 
 
-def flip_pretrain(**kwargs):
+def pretrain(**kwargs):
     model = Pretrain(**kwargs)
     return model 
 

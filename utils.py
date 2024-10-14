@@ -9,24 +9,57 @@ import datetime
 import torch
 import torch.distributed as dist
 
-def cosine_lr_schedule(optimizer, epoch, max_epoch, init_lr, min_lr):
-    """Decay the learning rate"""
-    lr = (init_lr - min_lr) * 0.5 * (1. + math.cos(math.pi * epoch / max_epoch)) + min_lr
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
-        
-def warmup_lr_schedule(optimizer, step, max_step, init_lr, max_lr):
-    """Warmup the learning rate"""
-    lr = min(max_lr, init_lr + (max_lr - init_lr) * step / max_step)
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr    
 
-def step_lr_schedule(optimizer, epoch, init_lr, min_lr, decay_rate):        
-    """Decay the learning rate"""
-    lr = max(min_lr, init_lr * (decay_rate**epoch))
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr    
-        
+def freeze_model(net, epoch):
+    extra_layers = ['visual_encoder.bn512.weight', 'visual_encoder.bn512.bias',  'visual_encoder.prelu768.weight', 
+                  'visual_encoder.fc768.weight', 'visual_encoder.fc768.bias',  'visual_encoder.features768.weight', 
+                  'visual_encoder.features768.bias', 'vision_proj.weight', 'vision_proj.bias',
+                  'visual_encoder_m.bn512.weight', 'visual_encoder_m.bn512.bias',  'visual_encoder_m.prelu768.weight', 
+                  'visual_encoder_m.fc768.weight', 'visual_encoder_m.fc768.bias', 'visual_encoder_m.features768.weight', 
+                  'visual_encoder_m.features768.bias', 'vision_proj_m.weight', 'vision_proj_m.bias', 
+                  'itm_head.weight', 'itm_head.bias']
+    
+    unfreeze_el = [ 'visual_encoder.bn2.weight', 'visual_encoder.bn2.bias', 'visual_encoder.fc.weight',
+                    'visual_encoder.fc.bias', 'visual_encoder.features.weight', 'visual_encoder.features.bias',
+                    'visual_encoder_m.bn2.weight', 'visual_encoder_m.bn2.bias', 'visual_encoder_m.fc.weight',
+                    'visual_encoder_m.fc.bias', 'visual_encoder_m.features.weight', 'visual_encoder_m.features.bias', 
+                    'temp', 'text_proj.weight', 'text_proj.bias', 'text_proj_m.bias', 'text_proj_m.bias']
+
+    if epoch == 0:
+        for name, param in net.named_parameters():
+            param.requires_grad = False
+
+            if name in extra_layers:
+                param.requires_grad = True
+
+    elif epoch > 0:
+        for name, param in net.named_parameters():
+            if "text_encoder" in name:
+                param.requires_grad = True
+
+            elif "text_decoder" in name:
+                param.requires_grad = True
+
+            elif "visual_encoder.layer3." in name:
+                param.requires_grad = True
+
+            elif "visual_encoder.layer4." in name:
+                param.requires_grad = True
+
+            elif "visual_encoder_m.layer3." in name:
+                param.requires_grad = True
+
+            elif "visual_encoder_m.layer4." in name:
+                param.requires_grad = True
+
+            elif name in unfreeze_el:
+                param.requires_grad = True
+
+            elif name in extra_layers:
+                param.requires_grad = True
+
+            else:
+                param.requires_grad = False
 
 
 class SmoothedValue(object):
@@ -254,6 +287,26 @@ def is_main_process():
 def save_on_master(*args, **kwargs):
     if is_main_process():
         torch.save(*args, **kwargs)
+
+
+def cosine_lr_schedule(optimizer, epoch, max_epoch, init_lr, min_lr):
+    """Decay the learning rate"""
+    lr = (init_lr - min_lr) * 0.5 * (1. + math.cos(math.pi * epoch / max_epoch)) + min_lr
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+        
+def warmup_lr_schedule(optimizer, step, max_step, init_lr, max_lr):
+    """Warmup the learning rate"""
+    lr = min(max_lr, init_lr + (max_lr - init_lr) * step / max_step)
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr    
+
+def step_lr_schedule(optimizer, epoch, init_lr, min_lr, decay_rate):        
+    """Decay the learning rate"""
+    lr = max(min_lr, init_lr * (decay_rate**epoch))
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr    
+        
 
 
 def init_distributed_mode(args):

@@ -19,7 +19,7 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 from torch.utils.data import DataLoader
 
-from models.facecpt import facecpt_decoder
+from models.facecpt import facecpt_caption
 import utils
 from utils import cosine_lr_schedule
 from data import create_dataset, create_sampler, create_loader
@@ -38,7 +38,6 @@ def train(model, data_loader, optimizer, epoch, device):
 
     for i, (image, caption, _) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
         image = image.to(device)       
-        
         loss = model(image, caption)      
         
         optimizer.zero_grad()
@@ -61,7 +60,6 @@ def test(model_without_ddp, test_loader, device, args, config):
                                     remove_duplicate='image_id')  
 
     if utils.is_main_process():   
-
         cap_test = caption_eval(config['ann_root'], test_result_file, 'test')
         log_stats = {**{f'test_{k}': v for k, v in cap_test.items()}}
 
@@ -76,7 +74,7 @@ def evaluate(model, data_loader, device, config):
     
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = 'Caption generation:'
-    print_freq = 20
+    print_freq = 50
 
     result = []
     for image, image_id in metric_logger.log_every(data_loader, print_freq, header): 
@@ -84,11 +82,11 @@ def evaluate(model, data_loader, device, config):
         image = image.to(device)    
         captions = model.generate(image, sample=True, 
                                   num_beams=config['num_beams'], 
-                                  max_length=config['max_length'] + 10, 
+                                  max_length=config['max_length'], 
                                   min_length=config['min_length'])
         
         for caption, img_id in zip(captions, image_id):
-            result.append({"image_id": img_id, "caption": caption}) #.item()
+            result.append({"image_id": img_id, "caption": caption}) 
     return result
 
 
@@ -117,16 +115,17 @@ def main(args, config):
     
     train_loader, val_loader, test_loader = create_loader([train_dataset, val_dataset, test_dataset],
                                             samplers,
-                                            batch_size=[config['batch_size']] * 4,
+                                            batch_size=[config['batch_size']] * 3,
                                             num_workers=[1, 1, 1],
                                             is_trains=[True, False, False], 
                                             collate_fns=[None, None, None])         
     
     #### Model #### 
     print("Creating model")
-    model = facecpt_decoder(pretrained=config['pretrained'], 
+    model = facecpt_caption(pretrained=config['pretrained'], 
                          image_size=config['image_size'], 
                          img_encoder=config['img_encoder'], 
+                         max_length = config['max_length'], 
                          prompt=config['prompt'])
 
     model = model.to(device)   
@@ -138,11 +137,7 @@ def main(args, config):
                                             find_unused_parameters=True)
         model_without_ddp = model.module    
     
-    optimizer = torch.optim.AdamW(params=model.parameters(), 
-                                  lr=config['init_lr'], 
-                                  weight_decay=config['weight_decay'])
-    
- 
+
     if args.evaluate:
         test(model_without_ddp, test_loader, device,  args, config) 
         return 0 
@@ -150,8 +145,16 @@ def main(args, config):
     best = 0
     print("Start training")
     start_time = time.time()    
-    
+    optimizer = torch.optim.AdamW(params=model.parameters(), 
+                                lr=config['init_lr'], 
+                                weight_decay=config['weight_decay'])
+
     for epoch in range(0, config['max_epoch']):
+        ######################### Delete ############################# 
+        best = 0
+        print("\n\n")
+        val_loader = test_loader
+        ###############################################################
         if not args.evaluate:        
             if args.distributed:
                 train_loader.sampler.set_epoch(epoch)
@@ -162,26 +165,26 @@ def main(args, config):
                                config['min_lr'])
             train_stats = train(model, train_loader, optimizer, epoch, device) 
         
-        val_result = evaluate(model_without_ddp, val_loader, device, config)  
-        val_result_file = save_result(val_result, args.result_dir, 
-                                      'val_epoch%d'%epoch, 
-                                      remove_duplicate='image_id')        
+        if epoch > 0:
+            val_result = evaluate(model_without_ddp, val_loader, device, config)  
+            val_result_file = save_result(val_result, args.result_dir, 
+                                        'val_epoch%d'%epoch, 
+                                        remove_duplicate='image_id')        
 
-        if utils.is_main_process():   
-            cap_val = caption_eval(config['ann_root'],  
-                                   val_result_file,'val')
+            if utils.is_main_process():   
+                cap_val = caption_eval(config['ann_root'],  val_result_file,'test') ############################################################# Delete
 
-            save_obj = {
-                'model': model_without_ddp.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'config': config,
-                'epoch': epoch,
-            }
-        
-            if cap_val['BLEU@4'] + cap_val['SPICE']  + cap_val['METEOR'] > best:
-                best = cap_val['BLEU@4'] + cap_val['SPICE'] + cap_val['METEOR'] 
-                print("Saving best model for face image captioning")               
-                torch.save(save_obj, os.path.join(args.output_dir, 'checkpoint_best.pth')) 
+                save_obj = {
+                    'model': model_without_ddp.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'config': config,
+                    'epoch': epoch,
+                }
+            
+                if cap_val['BLEU@4'] + cap_val['SPICE']  + cap_val['METEOR'] > best:
+                    best = cap_val['BLEU@4'] + cap_val['SPICE'] + cap_val['METEOR'] 
+                    print("Saving best model for face image captioning")               
+                    torch.save(save_obj, os.path.join(args.output_dir, f'cp_caption_celeba_text_arc18_{epoch}.pth')) 
                   
         dist.barrier()     
 
@@ -192,13 +195,13 @@ def main(args, config):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', default='celeba')    
+    parser.add_argument('--dataset', default='celeba_text')    
     parser.add_argument('--evaluate', action='store_true')    
-    parser.add_argument('--device', default='cuda')
-    parser.add_argument('--seed', default=42, type=int)
-    parser.add_argument('--world_size', default=1, type=int, help='number of distributed processes')    
-    parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
-    parser.add_argument('--distributed', default=True, type=bool)
+    parser.add_argument('--device', default = 'cuda')
+    parser.add_argument('--seed',   default = 42, type=int)
+    parser.add_argument('--world_size', default = 1, type=int, help='number of distributed processes')    
+    parser.add_argument('--dist_url', default = 'env://', help='url used to set up distributed training')
+    parser.add_argument('--distributed', default = True, type=bool)
 
     args = parser.parse_args()
     args.config = f'./configs/caption_{args.dataset}.yaml'
@@ -217,6 +220,6 @@ if __name__ == '__main__':
     main(args, config)
 
     """
-    python3 -m torch.distributed.run --nproc-per-node=2 train_caption.py --dataset celeba_dialog
+    python3 -m torch.distributed.run --nproc-per-node=2 train_caption.py --dataset celeba_text --evaluate
     Put gradeint update on ArcFace model = False
     """

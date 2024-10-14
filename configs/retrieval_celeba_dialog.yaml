@@ -1,22 +1,21 @@
 image_root: './datasets/celeba_dialog/images/'
 ann_root: './datasets/celeba_dialog/annotation'
 dataset: 'celeba_dialog'
+pretrained: 'output/pretrain/cp_pretrain_flip_04.pth'
 
-pretrained: 'output/pretrain/cp_pretrain_flip_02.pth' #'checkpoint/retrieval/cp_retrieval_celeba.pth' 
-
-img_encoder: 'arcface'
-batch_size_train: 64
+img_encoder: 'arcface_50'
+batch_size_train: 128
 batch_size_test: 64
-init_lr: 1e-5 #1e-5
+init_lr: 8e-6 #1e-5
 max_length: 40
 
 image_size: 112
 queue_size: 65536
 alpha: 0.4
-k_test: 128
+k_test: 10
 negative_all_rank: True
 
 # optimizer
 weight_decay: 0.05
-min_lr: 0
-max_epoch: 6
+min_lr: 1e-6
+max_epoch: 25

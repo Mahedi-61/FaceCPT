@@ -4,7 +4,7 @@ ann_root: ''
 # set pretrained as a file path or an url
 pretrained: 'checkpoint/cp_retrieval_celeba.pth' 
 
-img_encoder: 'arcface'
+img_encoder: 'arcface_50'
 batch_size_train: 32
 batch_size_test: 64
 init_lr: 5e-5 #1e-5
