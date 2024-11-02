@@ -1,3 +1,6 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1' 
+
 import argparse
 import os
 import ruamel.yaml as yaml
@@ -22,20 +25,20 @@ from data import create_dataset, create_sampler, create_loader
 
 
 def train(model, data_loader, optimizer, epoch, device, config):
-    # train
     model.train()  
     
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=50,       fmt='{value:.7f}'))
     metric_logger.add_meter('loss_ita', utils.SmoothedValue(window_size=50, fmt='{value:.4f}'))
     metric_logger.add_meter('loss_itm', utils.SmoothedValue(window_size=50, fmt='{value:.4f}'))    
-    metric_logger.add_meter('loss_lm', utils.SmoothedValue(window_size=50,  fmt='{value:.4f}'))
+    metric_logger.add_meter('loss_lm',  utils.SmoothedValue(window_size=50,  fmt='{value:.4f}'))
+    metric_logger.add_meter('loss_attr',  utils.SmoothedValue(window_size=50,  fmt='{value:.4f}'))
     
     header = 'Train Epoch: [{}]'.format(epoch)
     print_freq = 50   
     data_loader.sampler.set_epoch(epoch)
 
-    for i, (image, caption) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+    for i, (image, caption, attr_vec) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
         
         if epoch==0:
             warmup_lr_schedule(optimizer, 
@@ -50,8 +53,8 @@ def train(model, data_loader, optimizer, epoch, device, config):
         # ramp up alpha in the first 2 epochs
         alpha = config['alpha'] * min(1, (epoch * len(data_loader) + i) / (2 * len(data_loader))) 
   
-        loss_ita, loss_itm, loss_lm = model(image, caption, alpha = alpha)  
-        loss = loss_ita + loss_itm + loss_lm  
+        loss_ita, loss_itm, loss_lm, loss_attr = model(image, caption, attr_vec, alpha = alpha)  
+        loss = loss_ita + loss_itm + loss_lm  + loss_attr
 
         loss.backward()
         optimizer.step()    
@@ -59,13 +62,15 @@ def train(model, data_loader, optimizer, epoch, device, config):
         metric_logger.update(loss_ita=loss_ita.item())
         metric_logger.update(loss_itm=loss_itm.item())
         metric_logger.update(loss_lm=loss_lm.item())
-        metric_logger.update(lr=optimizer.param_groups[0]["lr"])  
+        metric_logger.update(loss_attr=loss_attr.item())
+
+        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
 
         
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger.global_avg())     
-    return {k: "{:.3f}".format(meter.global_avg) for k, meter in metric_logger.meters.items()}  
+    return {k: "{:.5f}".format(meter.global_avg) for k, meter in metric_logger.meters.items()}  
  
 
 
@@ -86,11 +91,10 @@ def main(args, config):
                             queue_size=config['queue_size'])
 
     model = model.to(device)   
-
     optimizer = torch.optim.AdamW(params=model.parameters(), 
                                 lr=config['init_lr'], 
                                 weight_decay=config['weight_decay'])
-    
+
     start_epoch = 0
     if args.checkpoint:    
         checkpoint = torch.load(args.checkpoint, map_location='cpu') 
@@ -110,6 +114,17 @@ def main(args, config):
         cp_albef = torch.load(albef_base, map_location='cpu', weights_only=True)  
         albef_dict = cp_albef['model']    
 
+        """
+        ####################################
+        a_dict = {}
+        print("removing itm_head to initialize due to size mismatch")
+        for key in albef_dict.keys():
+            if "itm_head." in key:
+                pass
+            else:
+                a_dict[key] = albef_dict[key]
+        ####################################
+        """
         blip_base = "weights/blip_base.pth"
         cp_blip = torch.load(blip_base, map_location='cpu') 
         blip_dict = cp_blip['model']   
@@ -119,11 +134,10 @@ def main(args, config):
             if "text_decoder" in key:
                 decoder_dict[key] = blip_dict[key]
 
-        decoder_dict.update(albef_dict)
+        decoder_dict.update(albef_dict) 
 
-        msg = model.load_state_dict(decoder_dict, strict=False)    
+        msg = model.load_state_dict(decoder_dict, strict=False)   
         print("missing keys in saved facecpt checkpont: ")
-
 
     #### Dataset #### 
     print("Creating dataset")
@@ -156,9 +170,7 @@ def main(args, config):
                         config['min_lr'], 
                         config['lr_decay_rate'])
 
-        print("freezing visual encoder")  
         utils.freeze_model(model_without_ddp, epoch)
-
         train_stats = train(model, data_loader, optimizer, epoch, device, config) 
 
         if utils.is_main_process():  
@@ -208,5 +220,6 @@ if __name__ == '__main__':
 
 """
 Run this code
+# switch bn of ArcFace requires_grad True
 python3 -m torch.distributed.run --nproc-per-node=2 pretrain.py
 """

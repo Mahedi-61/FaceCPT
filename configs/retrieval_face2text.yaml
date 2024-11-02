@@ -1,7 +1,7 @@
 image_root: './datasets/face2text/images/'
 ann_root: './datasets/face2text/annotation'
 dataset: 'face2text'
-pretrained: 'output/pretrain/cp_pretrain_flip_04.pth'
+pretrained: 'output/pretrain/cp_pretrain_flip_04.pth' # 4(2.099), 6(2.158)
 
 img_encoder: 'arcface_50'
 batch_size_train: 128
@@ -12,7 +12,7 @@ max_length: 65
 image_size: 112
 queue_size: 65536 
 alpha: 0.4
-k_test: 10   #12 best
+k_test: 12  
 negative_all_rank: True
 
 # optimizer

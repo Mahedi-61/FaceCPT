@@ -27,9 +27,8 @@ from data.utils import *
 
 
 def train(model, data_loader, optimizer, epoch, device):
-    # train
-    model.train()  
-    
+
+    model.train()      
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     metric_logger.add_meter('loss', utils.SmoothedValue(window_size=1, fmt='{value:.4f}'))
@@ -58,7 +57,7 @@ def test(model_without_ddp, test_loader, device, args, config):
     test_result_file = save_result(test_result, args.result_dir, 
                                     f'test_result_{args.dataset}', 
                                     remove_duplicate='image_id')  
-
+ 
     if utils.is_main_process():   
         cap_test = caption_eval(config['ann_root'], test_result_file, 'test')
         log_stats = {**{f'test_{k}': v for k, v in cap_test.items()}}
@@ -149,6 +148,7 @@ def main(args, config):
                                 lr=config['init_lr'], 
                                 weight_decay=config['weight_decay'])
 
+    #utils.freeze_caption_model(model_without_ddp)
     for epoch in range(0, config['max_epoch']):
         ######################### Delete ############################# 
         best = 0
@@ -165,6 +165,7 @@ def main(args, config):
                                config['min_lr'])
             train_stats = train(model, train_loader, optimizer, epoch, device) 
         
+        """
         if epoch > 0:
             val_result = evaluate(model_without_ddp, val_loader, device, config)  
             val_result_file = save_result(val_result, args.result_dir, 
@@ -172,7 +173,7 @@ def main(args, config):
                                         remove_duplicate='image_id')        
 
             if utils.is_main_process():   
-                cap_val = caption_eval(config['ann_root'],  val_result_file,'test') ############################################################# Delete
+                cap_val = caption_eval(config['ann_root'],  val_result_file,'test') ######################### Delete
 
                 save_obj = {
                     'model': model_without_ddp.state_dict(),
@@ -183,9 +184,16 @@ def main(args, config):
             
                 if cap_val['BLEU@4'] + cap_val['SPICE']  + cap_val['METEOR'] > best:
                     best = cap_val['BLEU@4'] + cap_val['SPICE'] + cap_val['METEOR'] 
-                    print("Saving best model for face image captioning")               
-                    torch.save(save_obj, os.path.join(args.output_dir, f'cp_caption_celeba_text_arc18_{epoch}.pth')) 
-                  
+                    print("Saving best model for face image captioning") 
+        """ 
+
+        save_obj = {
+            'model': model_without_ddp.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'config': config,
+            'epoch': epoch,
+        }             
+        torch.save(save_obj, os.path.join(args.output_dir, f'cp_caption_{args.dataset}_arc50_{epoch}.pth'))           
         dist.barrier()     
 
     total_time = time.time() - start_time
@@ -195,7 +203,7 @@ def main(args, config):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', default='celeba_text')    
+    parser.add_argument('--dataset', default='celeba')    
     parser.add_argument('--evaluate', action='store_true')    
     parser.add_argument('--device', default = 'cuda')
     parser.add_argument('--seed',   default = 42, type=int)
@@ -220,6 +228,6 @@ if __name__ == '__main__':
     main(args, config)
 
     """
-    python3 -m torch.distributed.run --nproc-per-node=2 train_caption.py --dataset celeba_text --evaluate
-    Put gradeint update on ArcFace model = False
+    python3 -m torch.distributed.run --nproc-per-node=2 train_caption.py --dataset celeba --evaluate
+    Put gradient update on ArcFace model = False
     """

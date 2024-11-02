@@ -8,7 +8,7 @@ from data.utils import *
 #                    Train Dataset
 ################################################################
 
-class FrAttrDataset(data.Dataset):
+class AttrDataset(data.Dataset):
     def __init__(self, split="train", args=None):
         print(f"################ Loading part: ", split)
         self.model_type = args.model_type
@@ -23,8 +23,10 @@ class FrAttrDataset(data.Dataset):
         print('loading json file: ' + ann_file)
         self.annotation = json.load(open(ann_file, 'r'))
 
-        attr_file = os.path.join(args.data_dir, "attribute.json")
-        self.attribute = json.load(open(attr_file, 'r'))
+        if self.dataset == "celeba_dialog":
+            attr_file = os.path.join(args.data_dir, "attribute.json")
+            self.attribute = json.load(open(attr_file, 'r'))
+            
         self.img_dir = os.path.join(args.data_dir, "images")
 
 
@@ -34,28 +36,46 @@ class FrAttrDataset(data.Dataset):
         image = transform_images(image_path, self.split)
     
         cls_id = int(ann['image_id'])
-        if self.dataset == "celeba_dialog":  cls_id = cls_id - 1
 
-        attr_vec = torch.as_tensor(self.attribute[ann['image']], dtype=torch.float32)
+        if self.dataset == "celeba_dialog":  
+            cls_id = cls_id - 1
+            attr_vec = torch.as_tensor(self.attribute[ann['image']], dtype=torch.float32)
+
+        elif self.dataset == "lfw_a":
+            attr_vec = torch.as_tensor(ann['attribute'], dtype=torch.float32)
         return image, attr_vec, cls_id 
 
 
     def __len__(self):
         return len(self.annotation)
-    
+
+
+class FrTrainDataset():
+    def __init__(self, args):
+        print(f"######### Train Dataset: {args.dataset} ########")
+        self.data_dir = args.data_dir
+        self.filenames, self.class_id = get_imgs_dir(self.data_dir, args)
+        self.args = args
+
+    def __len__(self):
+        return len(self.filenames)
+
+    def __getitem__(self, index):
+        img_name = self.filenames[index]
+        cls_id = self.class_id[index]
+
+        imgs = transform_images(img_name, "train")
+        return imgs, torch.tensor(cls_id) 
+
 
 class FrTestDataset:
-    def __init__(self, args=None, data_dir=""):
+    def __init__(self, args, test_dataset):
         self.split= "test"
-        if data_dir:
-            self.data_dir = data_dir 
-        else:
-            self.data_dir = args.data_dir
-        self.model_type = args.model_type 
+        self.data_dir =  os.path.join("./datasets", test_dataset)
+        test_ver_list  = os.path.join(self.data_dir, "test_pairs.txt")
 
-        print("\n############## Loading %s dataset ################" % args.dataset)
-        self.imgs_pair, self.pair_label = self.get_test_list(args.test_ver_list)
-
+        print("Loading %s dataset" % test_dataset)
+        self.imgs_pair, self.pair_label = self.get_test_list(test_ver_list)
 
     def get_test_list(self, test_ver_list):
         with open(test_ver_list, 'r') as fd:
@@ -90,6 +110,25 @@ class FrTestDataset:
 
         return img1, img2, img1_h, img2_h, pair_label
 
-
     def __len__(self):
         return len(self.imgs_pair)
+
+
+def get_imgs_dir(data_dir, args):
+    img_dir = os.path.join(data_dir, "images")
+    sub_ls = sorted(os.listdir(img_dir), key= lambda x: int(x))
+    sub_ls = sub_ls
+
+    all_labels = []
+    all_files = []
+    print("Subject list: %s, %s ..... %s" % (sub_ls[0], sub_ls[1], sub_ls[-1]))
+    
+    for sub in sub_ls:
+        sub_dir = os.path.join(img_dir, sub)
+
+        sub_imgs_dir = [os.path.join(sub_dir, img) for img in os.listdir(sub_dir)]
+        all_files += sub_imgs_dir 
+        all_labels += [int(sub)] * len(sub_imgs_dir) 
+
+    print("Labels: %d, %d ..... %d" % (int(sub_ls[0]), int(sub_ls[1]), int(sub_ls[-1])))
+    return all_files, all_labels

@@ -11,54 +11,155 @@ import torch.distributed as dist
 
 
 def freeze_model(net, epoch):
-    extra_layers = ['visual_encoder.bn512.weight', 'visual_encoder.bn512.bias',  'visual_encoder.prelu768.weight', 
-                  'visual_encoder.fc768.weight', 'visual_encoder.fc768.bias',  'visual_encoder.features768.weight', 
-                  'visual_encoder.features768.bias', 'vision_proj.weight', 'vision_proj.bias',
-                  'visual_encoder_m.bn512.weight', 'visual_encoder_m.bn512.bias',  'visual_encoder_m.prelu768.weight', 
-                  'visual_encoder_m.fc768.weight', 'visual_encoder_m.fc768.bias', 'visual_encoder_m.features768.weight', 
-                  'visual_encoder_m.features768.bias', 'vision_proj_m.weight', 'vision_proj_m.bias', 
-                  'itm_head.weight', 'itm_head.bias']
-    
-    unfreeze_el = [ 'visual_encoder.bn2.weight', 'visual_encoder.bn2.bias', 'visual_encoder.fc.weight',
-                    'visual_encoder.fc.bias', 'visual_encoder.features.weight', 'visual_encoder.features.bias',
-                    'visual_encoder_m.bn2.weight', 'visual_encoder_m.bn2.bias', 'visual_encoder_m.fc.weight',
-                    'visual_encoder_m.fc.bias', 'visual_encoder_m.features.weight', 'visual_encoder_m.features.bias', 
-                    'temp', 'text_proj.weight', 'text_proj.bias', 'text_proj_m.bias', 'text_proj_m.bias']
-
     if epoch == 0:
+        print("Freezing all layers except some:")
         for name, param in net.named_parameters():
             param.requires_grad = False
 
-            if name in extra_layers:
+            if 'visual_encoder.bn512.' in name:
+                param.requires_grad = True
+
+            elif 'visual_encoder.prelu768.' in name:
+                param.requires_grad = True
+
+            elif 'visual_encoder.fc768.' in name:
+                param.requires_grad = True
+
+            elif 'visual_encoder.features768.' in name:
+                param.requires_grad = True
+
+            elif 'vision_proj.' in name:
+                param.requires_grad = True
+
+            elif 'visual_encoder_m.bn512.' in name:
+                param.requires_grad = True
+
+            elif 'visual_encoder_m.prelu768.' in name:
+                param.requires_grad = True
+
+            elif 'visual_encoder_m.fc768.' in name:
+                param.requires_grad = True
+
+            elif 'visual_encoder_m.features768.' in name:
+                param.requires_grad = True
+
+            elif 'vision_proj_m.' in name:
+                param.requires_grad = True
+
+            elif 'attr_layer.' in name:
+                param.requires_grad = True
+
+            elif 'itm_head.' in name:
+                param.requires_grad = True
+
+            elif 'text_proj.' in name:
+                param.requires_grad = True
+
+            elif 'text_proj_m.' in name:
+                param.requires_grad = True
+
+            elif 'text_encoder_m.cls.' in name:
+                param.requires_grad = True
+
+            elif 'text_encoder.cls.' in name:
+                param.requires_grad = True
+
+            elif 'text_decoder.cls.' in name:
+                param.requires_grad = True
+
+            elif 'text_decoder.bert.encoder.layer.11.' in name:
                 param.requires_grad = True
 
     elif epoch > 0:
+        print("Freezing half layers")
         for name, param in net.named_parameters():
-            if "text_encoder" in name:
-                param.requires_grad = True
+            param.requires_grad = True
 
-            elif "text_decoder" in name:
-                param.requires_grad = True
+            if "text_encoder.bert.embeddings." in name:
+                param.requires_grad = False
+
+            elif "text_encoder.bert.encoder.layer.0." in name:
+                param.requires_grad = False
+
+            elif "text_encoder.bert.encoder.layer.1." in name:
+                param.requires_grad = False
+
+            elif "text_encoder.bert.encoder.layer.2." in name:
+                param.requires_grad = False
+
+            elif "text_encoder.bert.encoder.layer.3." in name:
+                param.requires_grad = False
+
+            elif "text_encoder_m.bert.embeddings." in name:
+                param.requires_grad = False
+
+            elif "text_encoder_m.bert.encoder.layer.0." in name:
+                param.requires_grad = False
+
+            elif "text_encoder_m.bert.encoder.layer.1." in name:
+                param.requires_grad = False
+
+            elif "text_encoder_m.bert.encoder.layer.2." in name:
+                param.requires_grad = False
+
+            elif "text_encoder_m.bert.encoder.layer.3." in name:
+                param.requires_grad = False
+
+            elif "text_decoder.bert.embeddings." in name:
+                param.requires_grad = False
+                
+            elif "text_decoder.bert.encoder.layer.0." in name:
+                param.requires_grad = False
+            
+            elif "text_decoder.bert.encoder.layer.1." in name:
+                param.requires_grad = False
+
+            elif "text_decoder.bert.encoder.layer.2." in name:
+                param.requires_grad = False
+
+            elif "text_decoder.bert.encoder.layer.3." in name:
+                param.requires_grad = False
+
+            elif "text_decoder.bert.encoder.layer.4." in name:
+                param.requires_grad = False
+
+            elif "text_decoder.bert.encoder.layer.5." in name:
+                param.requires_grad = False
+
+            elif "visual_encoder.conv1." in name:
+                param.requires_grad = False
+
+            elif "visual_encoder.bn1." in name:
+                param.requires_grad = False
+
+            elif "visual_encoder.prelu." in name:
+                param.requires_grad = False
+
+            elif "visual_encoder.layer1." in name:
+                param.requires_grad = False
+
+            elif "visual_encoder.layer2." in name:
+                param.requires_grad = False
 
             elif "visual_encoder.layer3." in name:
-                param.requires_grad = True
+                param.requires_grad = False
 
-            elif "visual_encoder.layer4." in name:
-                param.requires_grad = True
+            elif "visual_encoder_m.conv1." in name:
+                param.requires_grad = False
+
+            elif "visual_encoder_m.bn1." in name:
+                param.requires_grad = False
+
+            elif "visual_encoder_m.prelu." in name:
+                param.requires_grad = False
+
+            elif "visual_encoder_m.layer1." in name:
+                param.requires_grad = False
+
+            elif "visual_encoder_m.layer2." in name:
+                param.requires_grad = False
 
             elif "visual_encoder_m.layer3." in name:
-                param.requires_grad = True
-
-            elif "visual_encoder_m.layer4." in name:
-                param.requires_grad = True
-
-            elif name in unfreeze_el:
-                param.requires_grad = True
-
-            elif name in extra_layers:
-                param.requires_grad = True
-
-            else:
                 param.requires_grad = False
 
 

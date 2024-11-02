@@ -844,7 +844,8 @@ class BertLMHeadModel(BertPreTrainedModel):
         return_logits=False,            
         is_decoder=True,
         reduction='mean',
-        mode='multimodal', 
+        mode='multimodal',
+        return_emb = False 
     ):
         r"""
         encoder_hidden_states  (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`):
@@ -898,7 +899,7 @@ class BertLMHeadModel(BertPreTrainedModel):
             is_decoder=is_decoder,
             mode=mode,
         )
-        
+        dec_emb = outputs.last_hidden_state[:,0,:] # delete if doesn't work
         sequence_output = outputs[0]
         prediction_scores = self.cls(sequence_output)
         
@@ -919,14 +920,26 @@ class BertLMHeadModel(BertPreTrainedModel):
             output = (prediction_scores,) + outputs[2:]
             return ((lm_loss,) + output) if lm_loss is not None else output
 
-        return CausalLMOutputWithCrossAttentions(
-            loss=lm_loss,
-            logits=prediction_scores,
-            past_key_values=outputs.past_key_values,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
-            cross_attentions=outputs.cross_attentions,
-        )
+        if return_emb == True:
+            return CausalLMOutputWithCrossAttentions(
+                loss=lm_loss,
+                logits=prediction_scores,
+                past_key_values=outputs.past_key_values,
+                hidden_states=outputs.hidden_states,
+                attentions=outputs.attentions,
+                cross_attentions=outputs.cross_attentions,
+            ), dec_emb
+
+        else:
+            return CausalLMOutputWithCrossAttentions(
+                loss=lm_loss,
+                logits=prediction_scores,
+                past_key_values=outputs.past_key_values,
+                hidden_states=outputs.hidden_states,
+                attentions=outputs.attentions,
+                cross_attentions=outputs.cross_attentions,
+            )
+
 
     def prepare_inputs_for_generation(self, input_ids, past=None, attention_mask=None, **model_kwargs):
         input_shape = input_ids.shape

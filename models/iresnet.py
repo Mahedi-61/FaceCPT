@@ -68,8 +68,15 @@ class IBasicBlock(nn.Module):
 class IResNet(nn.Module):
     fc_scale = 7 * 7
     def __init__(self,
-                 block, layers, dropout=0, num_features=512, zero_init_residual=False,
-                 groups=1, width_per_group=64, replace_stride_with_dilation=None, fp16=False):
+                 block, layers, dropout=0, 
+                 num_features=512, 
+                 zero_init_residual=False,
+                 groups=1, 
+                 width_per_group=64, 
+                 replace_stride_with_dilation=None, 
+                 fp16=False, 
+                 visual_adapt = True):
+
         super(IResNet, self).__init__()
         self.extra_gflops = 0.0
         self.fp16 = fp16
@@ -107,16 +114,17 @@ class IResNet(nn.Module):
 
         self.features = nn.BatchNorm1d(num_features, eps=1e-05)
         nn.init.constant_(self.features.weight, 1.0)
-        self.features.weight.requires_grad = False
+        self.features.weight.requires_grad = True 
 
         ############# extra layers for 768-D projection
         self.bn512 = nn.BatchNorm1d(512, eps=1e-05,)
-        self.prelu768 = nn.PReLU() #768
+        self.prelu768 = nn.PReLU()
         nn.init.constant_(self.bn512.weight, 1)
 
-        self.fc768 = nn.Linear(768, 768)
+        self.fc768 = nn.Linear(896, 768)
         self.features768 = nn.BatchNorm1d(768, eps=1e-05)
         nn.init.constant_(self.features768.weight, 1.0)
+        self.visual_adapt = visual_adapt
         #############
 
         for m in self.modules():
@@ -164,6 +172,9 @@ class IResNet(nn.Module):
             x = self.prelu(x)
             x = self.layer1(x)
             x = self.layer2(x)
+            l2 = F.avg_pool2d(x, kernel_size=28)
+            l2 = l2.view(l2.size(0), -1)
+
             x = self.layer3(x)
             l3 = F.avg_pool2d(x, kernel_size=14)
             l3 = l3.view(l3.size(0), -1)
@@ -175,19 +186,21 @@ class IResNet(nn.Module):
             
         x = self.fc(x.float() if self.fp16 else x)
 
+        if self.visual_adapt == False:
+            return self.features(x)
+
         ######## extra code for 768-D projection
-        y = torch.cat((self.bn512(x), l3), dim=1)
-        y = self.prelu768(y)
-        y = self.fc768(y)
-        y = self.features768(y)
+        elif self.visual_adapt == True:
+            y = torch.cat((self.bn512(x), l3, l2), dim=1)
+            y = self.prelu768(y)
+            y = self.fc768(y)
+            y = self.features768(y)
+            return y
         #################################
 
-        #x = self.features(x)
-        return y
 
-
-def _iresnet(arch, block, layers, pretrained, progress, **kwargs):
-    model = IResNet(block, layers, **kwargs)
+def _iresnet(arch, block, layers, pretrained, progress, visual_adapt, **kwargs):
+    model = IResNet(block, layers, visual_adapt=visual_adapt, **kwargs)
     if pretrained:
         raise ValueError()
     return model
@@ -203,9 +216,9 @@ def iresnet34(pretrained=False, progress=True, **kwargs):
                     progress, **kwargs)
 
 
-def iresnet50(pretrained=False, progress=True, **kwargs):
+def iresnet50(pretrained=False, progress=True, visual_adapt = True, **kwargs):
     return _iresnet('iresnet50', IBasicBlock, [3, 4, 14, 3], pretrained,
-                    progress, **kwargs)
+                    progress, visual_adapt = visual_adapt, **kwargs)
 
 
 def iresnet100(pretrained=False, progress=True, **kwargs):
@@ -219,7 +232,7 @@ def iresnet200(pretrained=False, progress=True, **kwargs):
 
 
 def get_image_encoder(img_encoder):
-    model = iresnet50()
+    model = iresnet50(visual_adapt = True)
 
     if img_encoder=='arcface_50':
         checkpoint = torch.load("weights/arcface_ir50_ms1mv3.pth", 
@@ -235,9 +248,22 @@ def get_image_encoder(img_encoder):
     return model, 768
 
 
+def get_arcface(img_encoder):
+    model = iresnet50(visual_adapt = False)
+
+    if img_encoder=='arcface_50':
+        checkpoint = torch.load("weights/arcface_ir50_ms1mv3.pth", 
+                        map_location=torch.device('cpu'), weights_only=True)
+
+        msg = model.load_state_dict(checkpoint, strict=False)
+        #print(msg)
+    
+    return model 
+
+
 if __name__ == "__main__":
     x = torch.randn((16, 3, 112, 112))
-    net, width, add_layers = get_image_encoder("arcface_50")
-
-
+    net, width = get_image_encoder("arcface_50")
+    for name, param in net.named_parameters():
+        print(name) 
 

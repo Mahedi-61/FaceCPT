@@ -1,13 +1,14 @@
+import warnings
+warnings.filterwarnings("ignore")
+
 from models.decoder import BertConfig
 from transformers import BertTokenizer
 from models.xbert import BertForMaskedLM
 from transformers import BertTokenizer
-
+import os 
 import torch
 from torch import nn
 import torch.nn.functional as F
-
-from models.facecpt import load_checkpoint
 from models.iresnet import get_image_encoder
 
 class Retrieval(nn.Module):
@@ -32,8 +33,12 @@ class Retrieval(nn.Module):
         text_width = self.text_encoder.config.hidden_size
         self.vision_proj = nn.Linear(vision_width, embed_dim)
         self.text_proj = nn.Linear(text_width, embed_dim)
+
+        # fusion block
+        #self.mmf_fc = nn.Linear(1536, 128)
         self.itm_head = nn.Linear(text_width, 2) 
         
+
         # create momentum encoders  
         self.visual_encoder_m, vision_width = get_image_encoder(img_encoder)
         self.vision_proj_m = nn.Linear(vision_width, embed_dim)
@@ -219,13 +224,19 @@ class Retrieval(nn.Module):
                                        encoder_attention_mask = image_atts_all,      
                                        return_dict = True,
                                        mode = 'fusion')                         
-          
 
+        ############## Multimodal fusion ################## 
         vl_embeddings = torch.cat([output_pos.last_hidden_state[:,0,:], 
                                    output_neg.last_hidden_state[:,0,:]], 
                                    dim=0)
-        vl_output = self.itm_head(vl_embeddings)            
+        #output_pos_mm = torch.cat([output_pos.last_hidden_state[:,0,:], image_embeds[:,0,:]], dim=1)
+        #output_neg_mm = torch.cat([output_neg.last_hidden_state[:,0,:], image_embeds_all[:,0,:]], dim=1) 
 
+        #vl_embeddings = torch.cat([output_pos_mm, output_neg_mm],dim=0)
+        #vl_embeddings =  self.mmf_fc(vl_embeddings)
+        ###################################################
+
+        vl_output = self.itm_head(vl_embeddings)            
         itm_labels = torch.cat([torch.ones(bs, dtype=torch.long), 
                                 torch.zeros(2*bs,dtype=torch.long)],
                                dim=0).to(image.device)
@@ -272,10 +283,19 @@ def facecpt_retrieval(pretrained='',**kwargs):
     model = Retrieval(**kwargs)
     if pretrained:
         print("loading checkpoint form: ", pretrained)
-        model,msg = load_checkpoint(model, pretrained)
+        if os.path.isfile(pretrained):        
+            checkpoint = torch.load(pretrained, map_location='cpu') 
+        else:
+            raise RuntimeError('checkpoint path is invalid')
+        
+        state_dict = checkpoint['model']
+
         print("missing keys:")
+        msg = model.load_state_dict(state_dict, strict=False)
         print(msg.missing_keys)
-    return model 
+        return model 
+    else:
+        print("No pre-trained for finetuned model")
 
 
 @torch.no_grad()

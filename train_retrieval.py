@@ -129,7 +129,7 @@ def evaluation(model, data_loader, device, config):
     num_tasks = utils.get_world_size()
     rank = utils.get_rank() 
 
-    
+
     # caption --> face 
     sims_matrix = sims_matrix.t()
     score_matrix_t2i = torch.full((len(texts),len(data_loader.dataset.image)), -100.0).to(device)
@@ -153,7 +153,14 @@ def evaluation(model, data_loader, device, config):
                                 return_dict = True,
                                 mode = 'fusion',
                                 )
+
+        #out_size = output.last_hidden_state.size(1)
+        #encoder_output = encoder_output.repeat(1, out_size, 1)
+        #vl_embeddings = torch.cat([output.last_hidden_state[:,0,:], encoder_output[:,0,:]],dim=1)
+        #vl_embeddings =  model.mmf_fc(vl_embeddings)
+
         score = model.itm_head(output.last_hidden_state[:,0,:])[:,1]
+        #score = model.itm_head(vl_embeddings)[:,1]
         score_matrix_t2i[start+i, topk_idx] = score + topk_sim
 
     if args.distributed:
@@ -239,7 +246,6 @@ def main(args, config):
         test(model_without_ddp, test_loader, device, args, config)
         return 0 
 
-
     print("Start training")
     start_time = time.time()
     best = 0
@@ -275,7 +281,7 @@ def main(args, config):
                     'config': config,
                     'epoch': epoch,
                 }
-                torch.save(save_obj, os.path.join(args.output_dir, f'cp_retrieval_celeba_arc18_{epoch}.pth'))  
+                torch.save(save_obj, os.path.join(args.output_dir, f'cp_retrieval_celeba_arc50_{epoch}.pth'))  
                 best = val_result['txt2img_r_mean']        
                 best_epoch = epoch  
 

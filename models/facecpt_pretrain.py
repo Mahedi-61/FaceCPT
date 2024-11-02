@@ -41,14 +41,17 @@ class Pretrain(nn.Module):
 
         self.queue_size = queue_size
         self.momentum = momentum
-        self.temp = nn.Parameter(0.07 * torch.ones([]))   
+        self.temp = nn.Parameter(0.07 * torch.ones([]))
+
+        # fusion block
+        #self.mmf_fc = nn.Linear(1536, 128)
         self.itm_head = nn.Linear(text_width, 2) 
         
         # create momentum encoders  
         self.visual_encoder_m, vision_width = get_image_encoder(img_encoder)             
         self.vision_proj_m = nn.Linear(vision_width, embed_dim)
         self.text_encoder_m = BertForMaskedLM.from_pretrained('bert-base-uncased',
-                                                      config=encoder_config,) #add_pooling_layer=False)  
+                            config=encoder_config,) #add_pooling_layer=False)  
          
         self.text_proj_m = nn.Linear(text_width, embed_dim)
         
@@ -75,9 +78,13 @@ class Pretrain(nn.Module):
                                                             config=decoder_config)    
         self.text_decoder.resize_token_embeddings(len(self.dec_tokenizer)) 
         #tie_encoder_decoder_weights(self.text_encoder,self.text_decoder.bert,'','/attention')
-        
-        
-    def forward(self, image, caption, alpha):
+
+        #SAAL
+        self.attr_layer = nn.Linear(in_features=768, out_features=14, bias=True)
+        self.attr_dropout = nn.Dropout(p=0.15, inplace=False)
+
+
+    def forward(self, image, caption, attr_vec, alpha):
         with torch.no_grad():
             self.temp.clamp_(0.001, 0.5)
         
@@ -179,14 +186,20 @@ class Pretrain(nn.Module):
                                        encoder_hidden_states = image_embeds_all,
                                        encoder_attention_mask = image_atts_all,      
                                        return_dict = True,
-                                       mode = 'fusion',
-                                      )                            
+                                       mode = 'fusion')                            
+        
+        ############## Multimodal fusion ################## 
+        #output_pos_mm = torch.cat([output_pos.last_hidden_state[:,0,:], image_embeds[:,0,:]], dim=1)
+        #output_neg_mm = torch.cat([output_neg.last_hidden_state[:,0,:], image_embeds_all[:,0,:]], dim=1) 
 
+        #vl_embeddings = torch.cat([output_pos_mm, output_neg_mm],dim=0)
+        #vl_embeddings =  self.mmf_fc(vl_embeddings)
+        
         vl_embeddings = torch.cat([output_pos.last_hidden_state[:,0,:], 
                                    output_neg.last_hidden_state[:,0,:]],dim=0)
-        vl_output = self.itm_head(vl_embeddings)            
-
-        itm_labels = torch.cat([torch.ones(bs,dtype=torch.long),torch.zeros(2*bs,dtype=torch.long)],
+        ###################################################
+        vl_output = self.itm_head(vl_embeddings)
+        itm_labels = torch.cat([torch.ones(bs,dtype=torch.long), torch.zeros(2*bs,dtype=torch.long)],
                                dim=0).to(image.device)
         loss_itm = F.cross_entropy(vl_output, itm_labels)  
         
@@ -202,15 +215,23 @@ class Pretrain(nn.Module):
         decoder_input_ids[:,0] = self.dec_tokenizer.bos_token_id
         decoder_targets = decoder_input_ids.masked_fill(decoder_input_ids == self.dec_tokenizer.pad_token_id, -100) 
 
-        decoder_output = self.text_decoder(decoder_input_ids, 
+        decoder_output, dec_embed = self.text_decoder(decoder_input_ids, 
                                            attention_mask = text.attention_mask, 
                                            encoder_hidden_states = image_embeds,
                                            encoder_attention_mask = image_atts,                  
                                            labels = decoder_targets,
-                                           return_dict = True,   
-                                          )   
-        loss_lm = decoder_output.loss                
-        return loss_ita, loss_itm, loss_lm
+                                           return_dict = True,
+                                           return_emb = True   
+                                          )
+  
+        loss_lm = decoder_output.loss 
+        
+        ################################# SAAL#####################
+        attr_vec = attr_vec.to(image.device) 
+        pred_attrs = self.attr_layer(self.attr_dropout(dec_embed))
+        loss_attr =  nn.BCEWithLogitsLoss()(pred_attrs, attr_vec)
+
+        return loss_ita, loss_itm, loss_lm, loss_attr
 
 
     @torch.no_grad()    

@@ -26,6 +26,7 @@ class FaceCPT_Decoder(nn.Module):
         self.dec_tokenizer = init_dec_tokenizer()   
         decoder_config = BertConfig.from_json_file(config)
         decoder_config.encoder_width = vision_width
+
         self.text_decoder = BertLMHeadModel(config=decoder_config)
         self.text_decoder.resize_token_embeddings(len(self.dec_tokenizer))     
         
@@ -51,12 +52,13 @@ class FaceCPT_Decoder(nn.Module):
         decoder_targets = text.input_ids.masked_fill(text.input_ids == self.dec_tokenizer.pad_token_id, -100)         
         decoder_targets[:,:self.prompt_length] = -100
      
-        decoder_output = self.text_decoder(decoder_input_ids, 
+        decoder_output, dec_embed = self.text_decoder(decoder_input_ids, 
                                            attention_mask = text.attention_mask, 
                                            encoder_hidden_states = image_embeds,
                                            encoder_attention_mask = image_atts,                  
                                            labels = decoder_targets,
-                                           return_dict = True,   
+                                           return_dict = True,
+                                           return_emb = True   
                                           )   
         loss_lm = decoder_output.loss
         return loss_lm

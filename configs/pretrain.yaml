@@ -13,9 +13,9 @@ momentum: 0.995
 alpha: 0.4
 
 weight_decay: 0.05
-init_lr: 1e-5 #3e-4 (blip), 3e-5 (flip)
+init_lr: 8e-5 
 min_lr: 1e-6
 warmup_lr: 1e-6
 lr_decay_rate: 0.9
-max_epoch: 8
-warmup_steps: 15000 #(flip)
+max_epoch: 4
+warmup_steps: 20000

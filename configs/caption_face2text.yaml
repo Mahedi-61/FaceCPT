@@ -2,20 +2,19 @@ image_root: './datasets/face2text/images/'
 ann_root: './datasets/face2text/annotation'
 dataset: 'face2text'
 
-# set pretrained as a file path or an url
-pretrained: 'output/pretrain/cp_pretrain_flip_04.pth' 
+pretrained: 'output/pretrain/cp_pretrain_flip_00.pth'
 img_encoder: 'arcface_50'
-batch_size: 96
+batch_size: 128
 init_lr: 1e-5 
 
 # generation configs
 image_size: 112
-max_length: 65  
+max_length: 60  
 min_length: 15
 num_beams: 5
 prompt: 'a photo of a person where '
 
 # optimizer
-weight_decay: 0.02
+weight_decay: 0.05
 min_lr: 1e-6
-max_epoch: 10
+max_epoch: 12

@@ -169,7 +169,6 @@ def caption_eval(ann_root, results_file, split):
 
 
 
-
 def transform_images(img_path, split):
     img = np.array(Image.open(img_path).convert('RGB')) 
     sample_transforms = [
@@ -213,7 +212,6 @@ def do_flip_test_images(img_path):
 
     img = tfms(image=img)["image"] 
     return img
-
 
 
 all_attributes = ["5_o_Clock_Shadow",	"Arched_Eyebrows",	"Attractive",	"Bags_Under_Eyes",	"Bald",	

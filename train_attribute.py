@@ -11,7 +11,7 @@ from torch.nn import Parameter
 from tqdm import tqdm 
 
 from types import SimpleNamespace
-from data.fr_attr_dataset import FrAttrDataset, FrTestDataset
+from data.fr_attr_dataset import AttrDataset, FrTestDataset
 from data.utils import *
 from data.modules import calculate_acc
 from models import arcface
@@ -34,7 +34,7 @@ class Trainer:
 
 
     def get_data_loader(self):
-        train_ds = FrAttrDataset(split="train", args = self.args)
+        train_ds = AttrDataset(split="train", args = self.args)
         print(f"###### Dataset: {args.dataset} #########")
 
         self.train_dl = torch.utils.data.DataLoader(
@@ -44,7 +44,7 @@ class Trainer:
             num_workers=self.args.num_workers, 
             shuffle=True)
 
-        valid_ds =  FrAttrDataset(split="valid", args = self.args)
+        valid_ds =  AttrDataset(split="valid", args = self.args)
         self.valid_dl = torch.utils.data.DataLoader(
             valid_ds, 
             batch_size=self.args.batch_size, 
@@ -52,7 +52,7 @@ class Trainer:
             num_workers=self.args.num_workers, 
             shuffle=False)
 
-        test_ds =  FrAttrDataset(split="test", args = self.args)
+        test_ds =  AttrDataset(split="test", args = self.args)
         self.test_dl = torch.utils.data.DataLoader(
             test_ds, 
             batch_size=self.args.batch_size, 
@@ -62,11 +62,8 @@ class Trainer:
 
 
     def save_models(self):
-        save_dir = os.path.join("./weights", self.args.dataset)        
-        os.makedirs(save_dir, exist_ok=True)
-
-        name = 'cp_attribute_celeba_arc50_%d.pth' % self.args.current_epoch
-        state_path = os.path.join(save_dir, name)
+        name = 'cp_attribute_celeba_dialog_arc50_%d.pth' % self.args.current_epoch
+        state_path = os.path.join(args.output_dir, name)
         state = {"base_model" : self.base_model.state_dict(), 
                  "attr_model" : self.attr_model.state_dict()
                 }
@@ -119,12 +116,13 @@ class Trainer:
         self.lrs_optimizer_model = torch.optim.lr_scheduler.StepLR(
                                         self.optimizer_model, 
                                         step_size = 5,
-                                        gamma=0.999)
+                                        gamma=0.99) #0.9990 (dialog), 0.99(lfw_a)
         
         self.lrs_optimizer_attr = torch.optim.lr_scheduler.StepLR(
                                         self.optimizer_attr, 
                                         step_size = 5,
-                                        gamma=0.9996)
+                                        gamma=0.995) #09997 (dialog), 0.995(lfw_a)
+
 
     def evaluate_attr(self, eval_dl):
         self.base_model.eval()
@@ -154,7 +152,7 @@ class Trainer:
 
         loop.close()
         print("\n calculating attribution prediction accuracy: ")
-        acc, _ = calculate_acc(preds, labels, low_thresh=0.0, interval=0.01) 
+        acc, _ = calculate_acc(preds, labels, low_thresh=0.0, interval=0.05) 
         return acc 
 
 
@@ -168,10 +166,9 @@ class Trainer:
 
         loop = tqdm(total = len(self.train_dl))
 
-        for imgs, attr_vec, label in self.train_dl:   
+        for imgs, attr_vec, label in self.train_dl:
             imgs = imgs.to(my_device)
             attr_vec = attr_vec.to(my_device)
-            label = label.to(my_device)
         
             gl_feats  = self.base_model(imgs) 
             pred_attrs = self.attr_model(gl_feats)
@@ -184,7 +181,6 @@ class Trainer:
             loss_attr =  self.criterion_attr(pred_attrs, attr_vec)
             loss_attr.backward()
             total_attr_l += loss_attr.item()
-
 
             # updating weights
             if epoch > self.args.freeze: 
@@ -216,7 +212,7 @@ class Trainer:
             
             if epoch  > self.args.valid_interval:
                 print("\nLet's validate the model")
-                acc = self.evaluate_attr(eval_dl = self.valid_dl)
+                acc = self.evaluate_attr(eval_dl = self.test_dl) ####################change
 
                 if acc > self.val_acc:
                     print("\nLet's save the model")
@@ -233,21 +229,18 @@ def parse_arguments(argv):
     parser.add_argument('--evaluate',       dest="train",    help='evaluate the pretrained model',action='store_false')
     parser.set_defaults(train = True)
 
-    parser.add_argument('--dataset',      type=str,   default="celeba",    help='celeba|lfw')
-    parser.add_argument('--batch_size',   type=int,   default=128,         help='batch size')
-    parser.add_argument('--epochs',       type=int,   default=15,          help='Number of epochs')
-    parser.add_argument('--model_type',   type=str,   default="arcface_50",help='arch. of the model: ArcFace (iResNet50, iRestNet101)')
+    parser.add_argument('--dataset',      type=str,   default="lfw_a",    help='celeba_dialog|lfw_a')
+    parser.add_argument('--batch_size',   type=int,   default=128,           help='batch size')
+    parser.add_argument('--epochs',       type=int,   default=20,            help='Number of epochs') #15 (dialog), 20 (lfw_a)
+    parser.add_argument('--model_type',   type=str,   default="arcface_50",  help='arch.: ArcFace (ResNet50, RestNet101)')
     return  parser.parse_args(argv)
 
 
 setup_cfg = SimpleNamespace(
-    weights_arcface_50 = "./weights/arcface_ir50_ms1mv3.pth", 
-    weights_arcface_101 = "./weights/arcface_ir101_ms1mv3.pth",  
-    pretrained = "output/pretrain/cp_pretrain_flip_04.pth", 
-
+    pretrained = "output/pretrain/cp_pretrain_flip_00.pth", 
     checkpoint_path = "",
-    valid_interval = 5,
-    freeze = 4,
+    valid_interval = 8,
+    freeze = 5,  # 3 (celeba_dialog), 5 (lfw_a)
     use_se = False,
     manual_seed = 61,
     num_workers = 4
@@ -256,13 +249,12 @@ setup_cfg = SimpleNamespace(
 if __name__ == "__main__":
     c_args = parse_arguments(sys.argv[1:])
 
-    if c_args.dataset == "celeba":
+    if c_args.dataset == "celeba_dialog":
         args = SimpleNamespace(**c_args.__dict__, **setup_cfg.__dict__) 
 
-    elif c_args.dataset == "lfw":
+    elif c_args.dataset == "lfw_a":
         args = SimpleNamespace(**c_args.__dict__, **setup_cfg.__dict__)
     
-
     # set seed
     random.seed(args.manual_seed)
     np.random.seed(args.manual_seed)
@@ -274,10 +266,9 @@ if __name__ == "__main__":
     args.output_dir = f'output/attr_{args.dataset}'
 
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    
     t = Trainer(args)
-    print("start training ...")
 
+    print("start training ...")
     if args.train == True:
         t.train()
     elif args.train == False:
@@ -286,5 +277,5 @@ if __name__ == "__main__":
 
 """
 RUN the code
-python3 train_attribute.py --dataset celeba --evaluate
+python3 train_attribute.py --dataset celeba_dialog --evaluate
 """

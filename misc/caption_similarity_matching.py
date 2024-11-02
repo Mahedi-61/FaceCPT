@@ -160,7 +160,7 @@ def main(args, config):
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str)) 
 
-    
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
