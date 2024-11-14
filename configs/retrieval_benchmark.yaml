@@ -2,7 +2,7 @@ image_root: ''
 ann_root: ''
 
 # set pretrained as a file path or an url
-pretrained: 'checkpoint/cp_retrieval_celeba.pth' 
+pretrained: 'output/pretrain/cp_pretrain_flip_00.pth' 
 
 img_encoder: 'arcface_50'
 batch_size_train: 32

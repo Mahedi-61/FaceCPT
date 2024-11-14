@@ -82,6 +82,7 @@ class Pretrain(nn.Module):
         #SAAL
         self.attr_layer = nn.Linear(in_features=768, out_features=14, bias=True)
         self.attr_dropout = nn.Dropout(p=0.15, inplace=False)
+        self.criterion = nn.BCEWithLogitsLoss()
 
 
     def forward(self, image, caption, attr_vec, alpha):
@@ -210,7 +211,7 @@ class Pretrain(nn.Module):
                               truncation=True, 
                               max_length=55, 
                               return_tensors="pt").to(image.device)  
-             
+
         decoder_input_ids = text.input_ids      
         decoder_input_ids[:,0] = self.dec_tokenizer.bos_token_id
         decoder_targets = decoder_input_ids.masked_fill(decoder_input_ids == self.dec_tokenizer.pad_token_id, -100) 
@@ -220,16 +221,15 @@ class Pretrain(nn.Module):
                                            encoder_hidden_states = image_embeds,
                                            encoder_attention_mask = image_atts,                  
                                            labels = decoder_targets,
-                                           return_dict = True,
-                                           return_emb = True   
-                                          )
+                                           return_dict = True)
+                                           #return_emb = True   
   
         loss_lm = decoder_output.loss 
         
         ################################# SAAL#####################
         attr_vec = attr_vec.to(image.device) 
         pred_attrs = self.attr_layer(self.attr_dropout(dec_embed))
-        loss_attr =  nn.BCEWithLogitsLoss()(pred_attrs, attr_vec)
+        loss_attr =  self.criterion(pred_attrs, attr_vec)
 
         return loss_ita, loss_itm, loss_lm, loss_attr
 

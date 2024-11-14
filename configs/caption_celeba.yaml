@@ -2,19 +2,19 @@ image_root: './datasets/celeba/images/'
 ann_root: './datasets/celeba/annotation'
 dataset: 'celeba'
 
-pretrained: 'output/pretrain/cp_pretrain_flip_01.pth'
+pretrained: "output/caption_celeba/cp_caption_celeba_arc50_16_0_5.pth" 
 img_encoder: 'arcface_50'
 batch_size: 128
-init_lr: 7e-6 #1e-5
+init_lr: 7e-6 
 
 # generation configs
 image_size: 112
 max_length: 40  
 min_length: 15
 num_beams: 5
-prompt: '' #'a photo of a person where ' #comment for zero-shot setting
+prompt: 'a photo of a person where ' 
 
 # optimizer
 weight_decay: 0.05
 min_lr: 1e-6
-max_epoch: 15
+max_epoch: 17

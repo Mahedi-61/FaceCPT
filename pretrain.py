@@ -114,17 +114,6 @@ def main(args, config):
         cp_albef = torch.load(albef_base, map_location='cpu', weights_only=True)  
         albef_dict = cp_albef['model']    
 
-        """
-        ####################################
-        a_dict = {}
-        print("removing itm_head to initialize due to size mismatch")
-        for key in albef_dict.keys():
-            if "itm_head." in key:
-                pass
-            else:
-                a_dict[key] = albef_dict[key]
-        ####################################
-        """
         blip_base = "weights/blip_base.pth"
         cp_blip = torch.load(blip_base, map_location='cpu') 
         blip_dict = cp_blip['model']   

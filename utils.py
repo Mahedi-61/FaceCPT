@@ -67,66 +67,13 @@ def freeze_model(net, epoch):
             elif 'text_decoder.cls.' in name:
                 param.requires_grad = True
 
-            elif 'text_decoder.bert.encoder.layer.11.' in name:
-                param.requires_grad = True
 
     elif epoch > 0:
         print("Freezing half layers")
         for name, param in net.named_parameters():
             param.requires_grad = True
 
-            if "text_encoder.bert.embeddings." in name:
-                param.requires_grad = False
-
-            elif "text_encoder.bert.encoder.layer.0." in name:
-                param.requires_grad = False
-
-            elif "text_encoder.bert.encoder.layer.1." in name:
-                param.requires_grad = False
-
-            elif "text_encoder.bert.encoder.layer.2." in name:
-                param.requires_grad = False
-
-            elif "text_encoder.bert.encoder.layer.3." in name:
-                param.requires_grad = False
-
-            elif "text_encoder_m.bert.embeddings." in name:
-                param.requires_grad = False
-
-            elif "text_encoder_m.bert.encoder.layer.0." in name:
-                param.requires_grad = False
-
-            elif "text_encoder_m.bert.encoder.layer.1." in name:
-                param.requires_grad = False
-
-            elif "text_encoder_m.bert.encoder.layer.2." in name:
-                param.requires_grad = False
-
-            elif "text_encoder_m.bert.encoder.layer.3." in name:
-                param.requires_grad = False
-
-            elif "text_decoder.bert.embeddings." in name:
-                param.requires_grad = False
-                
-            elif "text_decoder.bert.encoder.layer.0." in name:
-                param.requires_grad = False
-            
-            elif "text_decoder.bert.encoder.layer.1." in name:
-                param.requires_grad = False
-
-            elif "text_decoder.bert.encoder.layer.2." in name:
-                param.requires_grad = False
-
-            elif "text_decoder.bert.encoder.layer.3." in name:
-                param.requires_grad = False
-
-            elif "text_decoder.bert.encoder.layer.4." in name:
-                param.requires_grad = False
-
-            elif "text_decoder.bert.encoder.layer.5." in name:
-                param.requires_grad = False
-
-            elif "visual_encoder.conv1." in name:
+            if "visual_encoder.conv1." in name:
                 param.requires_grad = False
 
             elif "visual_encoder.bn1." in name:
@@ -139,9 +86,6 @@ def freeze_model(net, epoch):
                 param.requires_grad = False
 
             elif "visual_encoder.layer2." in name:
-                param.requires_grad = False
-
-            elif "visual_encoder.layer3." in name:
                 param.requires_grad = False
 
             elif "visual_encoder_m.conv1." in name:
@@ -159,9 +103,64 @@ def freeze_model(net, epoch):
             elif "visual_encoder_m.layer2." in name:
                 param.requires_grad = False
 
-            elif "visual_encoder_m.layer3." in name:
-                param.requires_grad = False
+"""
+elif "visual_encoder.layer3." in name:
+    param.requires_grad = False
+    
+elif "visual_encoder_m.layer3." in name:
+    param.requires_grad = False
 
+elif "text_encoder.bert.embeddings." in name:
+    param.requires_grad = False
+
+elif "text_encoder.bert.encoder.layer.0." in name:
+    param.requires_grad = False
+
+elif "text_encoder.bert.encoder.layer.1." in name:
+    param.requires_grad = False
+
+elif "text_encoder.bert.encoder.layer.2." in name:
+    param.requires_grad = False
+
+elif "text_encoder.bert.encoder.layer.3." in name:
+    param.requires_grad = False
+
+elif "text_encoder_m.bert.embeddings." in name:
+    param.requires_grad = False
+
+elif "text_encoder_m.bert.encoder.layer.0." in name:
+    param.requires_grad = False
+
+elif "text_encoder_m.bert.encoder.layer.1." in name:
+    param.requires_grad = False
+
+elif "text_encoder_m.bert.encoder.layer.2." in name:
+    param.requires_grad = False
+
+elif "text_encoder_m.bert.encoder.layer.3." in name:
+    param.requires_grad = False
+
+elif "text_decoder.bert.embeddings." in name:
+    param.requires_grad = False
+
+elif "text_decoder.bert.encoder.layer.0." in name:
+    param.requires_grad = False
+
+elif "text_decoder.bert.encoder.layer.1." in name:
+    param.requires_grad = False
+
+elif "text_decoder.bert.encoder.layer.2." in name:
+    param.requires_grad = False
+
+elif "text_decoder.bert.encoder.layer.3." in name:
+    param.requires_grad = False
+
+elif "text_decoder.bert.encoder.layer.4." in name:
+    param.requires_grad = False
+
+elif "text_decoder.bert.encoder.layer.5." in name:
+    param.requires_grad = False
+"""
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a

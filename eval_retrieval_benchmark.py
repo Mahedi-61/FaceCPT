@@ -143,13 +143,14 @@ def itm_eval(scores_t2i, txt2img, img2txt):
     # Compute metrics
     ir1 = 100.0 * len(np.where(ranks < 1)[0]) / len(ranks)
     ir5 = 100.0 * len(np.where(ranks < 5)[0]) / len(ranks)
-    ir10 = 100.0 * len(np.where(ranks < 10)[0]) / len(ranks)        
+    ir10 = 100.0 * len(np.where(ranks < 10)[0]) / len(ranks)      
+    ir20 = 100.0 * len(np.where(ranks < 20)[0]) / len(ranks)     
 
-
-    ir_mean = (ir1 + ir5 + ir10) / 3
+    ir_mean = (ir1 + ir5 + ir10 + ir20) / 4
     eval_result =  {'txt2img_r1': ir1,
                     'txt2img_r5': ir5,
                     'txt2img_r10': ir10,
+                    'txt2img_r20': ir20,
                     'txt2img_r_mean': ir_mean}
     return eval_result
 
@@ -213,7 +214,7 @@ def main(args, config):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()     
-    parser.add_argument('--dataset',    default='celeba')         
+    parser.add_argument('--dataset',    default='celeba_text')         
     parser.add_argument('--device',     default='cuda')
     parser.add_argument('--seed',       default=42, type=int)
     parser.add_argument('--world_size', default=1, type=int, help='number of distributed processes')    
@@ -228,13 +229,13 @@ if __name__ == '__main__':
     config = yml.load(open(args.config, 'r'))
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
-    config["image_root"] = os.path.join("../FaceCPT/datasets", args.dataset, "images")
-    config["ann_root"] = os.path.join("../FaceCPT/datasets", args.dataset, "annotation") 
+    config["image_root"] = os.path.join("datasets", args.dataset, "images")
+    config["ann_root"] = os.path.join("datasets", args.dataset, "annotation") 
     
     yd = yaml.YAML(typ='unsafe', pure=True)
     yd.dump(config, open(os.path.join(args.output_dir, 'config.yaml'), 'w'))    
     
     main(args, config)
     """
-    python3 -m torch.distributed.run --nproc-per-node=2 eval_retrieval_benchmark.py --dataset celeba
+    python3 -m torch.distributed.run --nproc-per-node=2 eval_retrieval_benchmark.py --dataset celeba_text
     """

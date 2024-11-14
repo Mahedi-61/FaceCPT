@@ -2,7 +2,7 @@ image_root: './datasets/face2text/images/'
 ann_root: './datasets/face2text/annotation'
 dataset: 'face2text'
 
-pretrained: 'output/pretrain/cp_pretrain_flip_00.pth'
+pretrained: 'output/pretrain/cp_pretrain_flip_02.pth'
 img_encoder: 'arcface_50'
 batch_size: 128
 init_lr: 1e-5 

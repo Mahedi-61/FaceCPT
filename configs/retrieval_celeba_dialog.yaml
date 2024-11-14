@@ -1,7 +1,7 @@
 image_root: './datasets/celeba_dialog/images/'
 ann_root: './datasets/celeba_dialog/annotation'
 dataset: 'celeba_dialog'
-pretrained: 'output/pretrain/cp_pretrain_flip_04.pth' # 6 (.7468), 4 (.6109)
+pretrained: 'output/pretrain/cp_pretrain_flip_2.pth' # 2(1.18), 4 (.6109)
 
 img_encoder: 'arcface_50'
 batch_size_train: 128

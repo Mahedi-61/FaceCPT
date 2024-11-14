@@ -844,9 +844,10 @@ class BertLMHeadModel(BertPreTrainedModel):
         return_logits=False,            
         is_decoder=True,
         reduction='mean',
-        mode='multimodal',
-        return_emb = False 
-    ):
+        mode='multimodal'    
+        ):
+        #return_emb = False 
+
         r"""
         encoder_hidden_states  (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`):
             Sequence of hidden-states at the output of the last layer of the encoder. Used in the cross-attention if
@@ -920,16 +921,16 @@ class BertLMHeadModel(BertPreTrainedModel):
             output = (prediction_scores,) + outputs[2:]
             return ((lm_loss,) + output) if lm_loss is not None else output
 
-        if return_emb == True:
-            return CausalLMOutputWithCrossAttentions(
-                loss=lm_loss,
-                logits=prediction_scores,
-                past_key_values=outputs.past_key_values,
-                hidden_states=outputs.hidden_states,
-                attentions=outputs.attentions,
-                cross_attentions=outputs.cross_attentions,
-            ), dec_emb
-
+        #if return_emb == True:
+        return CausalLMOutputWithCrossAttentions(
+            loss=lm_loss,
+            logits=prediction_scores,
+            past_key_values=outputs.past_key_values,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+            cross_attentions=outputs.cross_attentions,
+        ), dec_emb
+        """
         else:
             return CausalLMOutputWithCrossAttentions(
                 loss=lm_loss,
@@ -939,7 +940,7 @@ class BertLMHeadModel(BertPreTrainedModel):
                 attentions=outputs.attentions,
                 cross_attentions=outputs.cross_attentions,
             )
-
+        """
 
     def prepare_inputs_for_generation(self, input_ids, past=None, attention_mask=None, **model_kwargs):
         input_shape = input_ids.shape

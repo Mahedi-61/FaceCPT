@@ -17,5 +17,5 @@ init_lr: 8e-5
 min_lr: 1e-6
 warmup_lr: 1e-6
 lr_decay_rate: 0.9
-max_epoch: 4
+max_epoch: 6
 warmup_steps: 20000

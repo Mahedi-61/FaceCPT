@@ -57,9 +57,9 @@ class FaceCPT_Decoder(nn.Module):
                                            encoder_hidden_states = image_embeds,
                                            encoder_attention_mask = image_atts,                  
                                            labels = decoder_targets,
-                                           return_dict = True,
-                                           return_emb = True   
-                                          )   
+                                           return_dict = True)
+                                           #return_emb = True   
+                                          
         loss_lm = decoder_output.loss
         return loss_lm
         
@@ -117,9 +117,20 @@ class FaceCPT_Decoder(nn.Module):
 def facecpt_caption(pretrained='',**kwargs):
     model = FaceCPT_Decoder(**kwargs)
     if pretrained:
-        model, msg = load_checkpoint(model, pretrained)
-        assert(len(msg.missing_keys) == 0)
-    return model    
+        print("loading checkpoint form: ", pretrained)
+        if os.path.isfile(pretrained):        
+            checkpoint = torch.load(pretrained, map_location='cpu') 
+        else:
+            raise RuntimeError('checkpoint path is invalid')
+        
+        state_dict = checkpoint['model']
+
+        print("missing keys:")
+        msg = model.load_state_dict(state_dict, strict=False)
+        print(msg.missing_keys)
+        return model 
+    else:
+        print("No pre-trained for finetuned model")
 
 
 def init_dec_tokenizer():
@@ -128,23 +139,3 @@ def init_dec_tokenizer():
     tokenizer.add_special_tokens({'additional_special_tokens':['[ENC]']})       
     tokenizer.enc_token_id = tokenizer.additional_special_tokens_ids[0]  
     return tokenizer
-    
-
-
-def load_checkpoint(model, filename):
-    if os.path.isfile(filename):        
-        checkpoint = torch.load(filename, map_location='cpu') 
-    else:
-        raise RuntimeError('checkpoint path is invalid')
-        
-    state_dict = checkpoint['model']
-
-    for key in model.state_dict().keys():
-        if key in state_dict.keys():
-            if state_dict[key].shape != model.state_dict()[key].shape:
-                del state_dict[key]
-    
-    msg = model.load_state_dict(state_dict, strict=False)
-    print('load checkpoint from %s' % filename)  
-    return model, msg
-    

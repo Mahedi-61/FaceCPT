@@ -1,7 +1,7 @@
 image_root: './datasets/celeba/images/'
 ann_root: './datasets/celeba/annotation'
 dataset: 'celeba'
-pretrained:  'output/pretrain/cp_pretrain_flip_01.pth' # 1(31.36)
+pretrained:  'output/pretrain/cp_pretrain_flip_01.pth' # 2(29.90), 3(27.985)
 
 img_encoder: 'arcface_50'
 batch_size_train: 128
@@ -12,10 +12,10 @@ max_length: 40
 image_size: 112
 queue_size: 65536 
 alpha: 0.4
-k_test: 10        
+k_test: 12        
 negative_all_rank: True
 
 # optimizer
 weight_decay: 0.05 #0.02
 min_lr: 9e-7
-max_epoch: 10
+max_epoch: 12

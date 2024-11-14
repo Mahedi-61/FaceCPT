@@ -325,5 +325,4 @@ if __name__ == '__main__':
     main(args, config)
     """
     python3 -m torch.distributed.run --nproc-per-node=2 train_retrieval.py --dataset celeba --evaluate 
-    Put gradeint update on ArcFace model = False
     """

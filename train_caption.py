@@ -148,7 +148,6 @@ def main(args, config):
                                 lr=config['init_lr'], 
                                 weight_decay=config['weight_decay'])
 
-    #utils.freeze_caption_model(model_without_ddp)
     for epoch in range(0, config['max_epoch']):
         ######################### Delete ############################# 
         best = 0
@@ -182,7 +181,7 @@ def main(args, config):
                     'epoch': epoch,
                 }
             
-                if cap_val['BLEU@4'] + cap_val['SPICE']  + cap_val['METEOR'] > best:
+                if cap_val['BLEU@4'] + cap_val['METEOR'] > best:
                     best = cap_val['BLEU@4'] + cap_val['SPICE'] + cap_val['METEOR'] 
                     print("Saving best model for face image captioning") 
         """ 
@@ -229,5 +228,4 @@ if __name__ == '__main__':
 
     """
     python3 -m torch.distributed.run --nproc-per-node=2 train_caption.py --dataset celeba --evaluate
-    Put gradient update on ArcFace model = False
     """
