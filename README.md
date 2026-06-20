@@ -105,7 +105,7 @@ python -m nltk.downloader punkt
 | Dataset | Scale | Used For | Notes |
 |---|---|---|---|
 | [FaceCaption-15M](https://arxiv.org/abs/2407.08515) | 15M pairs | Pre-training | RetinaFace-filtered, attribute-driven captions |
-| [FLIP-80M](https://dl.acm.org/doi/10.1145/3652583.3658019) | 80M pairs | Pre-training | Web-crawled; refined to remove non-face / complex-background pairs |
+| [FLIP-80M](https://huggingface.co/datasets/FLIP-dataset/FLIP-80M) | 80M pairs | Pre-training | Web-crawled; refined to remove non-face / complex-background pairs |
 | [Multi-Modal CelebA-HQ (MMCelebA)](https://github.com/weihaox/Multi-Modal-CelebA-HQ-Dataset) | 30,000 images, 10 captions/image | Caption & retrieval fine-tuning, FAR | 40 facial attributes as ground truth |
 | [Face2Text](https://github.com/mtanti/face2text-dataset) | 10,559 images, 1–5 captions/image | Caption & retrieval fine-tuning | Attributes predicted via the CelebA-trained attribute model |
 | [CelebA-Text](https://github.com/cripac-sjx/SEA-T2F) | — | Caption fine-tuning | Multi-caption text-to-face dataset |
@@ -124,7 +124,7 @@ The image encoder is initialized from **ArcFace weights pre-trained on MS1MV2**.
 | iResNet-50 | `weights/arcface_ir50_ms1mv3.pth` |
 | iResNet-101 | `weights/arcface_ir101_ms1mv3.pth` |
 
-The text encoder is initialized from the **first 6 layers** of pre-trained `bert-base-uncased`, the cross-modal encoder from its **last 6 layers** (`fusion_layer: 6` in `configs/bert_config.json`), and the text decoder is also `bert-base-uncased`-initialized with cross-attention enabled (`configs/decoder_config.json`), sharing some layers with the cross-modal encoder. These download automatically via `transformers` on first run.
+The text encoder is initialized from the **first 6 layers** of pre-trained `bert-base-uncased`, the cross-modal encoder from its **last 6 layers** (`fusion_layer: 6` in `configs/bert_config.json`), and the text decoder is also `bert-base-uncased`-initialized with cross-attention enabled (`configs/decoder_config.json`), sharing some layers with the cross-modal encoder. 
 
 Pre-trained FaceCPT checkpoints (after Stage-1 pre-training) are expected under `output/pretrain/` (e.g. `cp_pretrain_flip_00.pth`), and benchmark-ready fine-tuned checkpoints under `checkpoint/` (e.g. `cp_caption_celeba.pth`) — see the `pretrained:` field in each YAML config.
 
@@ -191,7 +191,7 @@ python3 eval_fr_sota_benchmark.py --architecture ir_50 --dataset lfw
 
 `eval_fr_sota_benchmark.py` additionally accepts `--model_type` (`arcface` | `adaface` | `magface`), `--test_file` (pair-list filename), and `--checkpoint_path`.
 
-Grad-CAM visualizations (Fig. 3c) and the task-coverage radar chart (Fig. 1) can be reproduced with `misc/gradcam_vis.py` and `misc/radar_chart.py`, respectively.
+Grad-CAM visualizations and the task-coverage radar chart can be reproduced with `misc/gradcam_vis.py` and `misc/radar_chart.py`, respectively.
 
 ## Results
 
@@ -250,10 +250,12 @@ FaceCPT-R101 matches or beats VLP baselines that use 3–4× higher input resolu
 If you build on this work, please cite:
 
 ```bibtex
-@article{hasan_2025_facecpt,
-  title={FaceCPT: Toward Cross-Modal Facial Representation Learning with Face-Caption Pre-Training},
-  author={Hasan, Md Mahedi and Sami, Shoaib Meraj and Nasrabadi, Nasser and Dawson, Jeremy},
-  year={2025}
+@inproceedings{hasan_2025_facecpt,
+  title     = {{FaceCPT}: Toward Cross-Modal Facial Representation Learning with Face-Caption Pre-Training},
+  author    = {Hasan, Md Mahedi and Sami, Shoaib Meraj and Nasrabadi, Nasser and Dawson, Jeremy M.},
+  booktitle = {36th British Machine Vision Conference (BMVC)},
+  year      = {2025},
+  organization = {BMVA}
 }
 ```
 
